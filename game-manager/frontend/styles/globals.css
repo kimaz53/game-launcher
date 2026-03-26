@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-app-background: #0D1117;
+  --color-sidebar: #161B22;
+  --color-card: #1F2937;
+  --color-border: #30363D;
+  --color-text: #F0F6FC;
+  --color-muted-text: #9BA7B4;
+  --color-primary-button: #3B82F6;
+  --color-hovered-primary-button: #2563EB;
+  --color-secondary-button: #1E293B;
+  --color-hovered-secondary-button: #334155;
+  --color-secondary-accent: #06B6D4;
+  --color-secondary-text: #8B949E;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #0EA5E9;
+  --color-scrollbar-track: #161B22;
+  --color-scrollbar-thumb: #3A4450;
+  --color-scrollbar-thumb-hover: #4F5E6E;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--color-app-background);
+  color: var(--color-text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Wails draggable regions */
+.wails-drag {
+  --wails-draggable: drag;
+}
+.wails-no-drag {
+  --wails-draggable: no-drag;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid var(--color-scrollbar-track);
+  border-radius: 9999px;
+  background: var(--color-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
+* {
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+}

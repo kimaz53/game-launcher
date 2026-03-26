@@ -1,0 +1,60 @@
+[
+  {
+    "id": 1,
+    "name": "FA",
+    "exePath": "",
+    "args": "",
+    "category": "",
+    "group": "",
+    "tags": [],
+    "platform": "",
+    "status": "Not Installed",
+    "exeIconRelPath": "icons/53dc27f05bedcc1dcdb8f04f7b61c5a3.png",
+    "allowedClientIps": [
+      "192.168.1.11",
+      "192.168.1.12",
+      "192.168.1.14",
+      "192.168.1.13",
+      "192.168.1.10"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "G",
+    "exePath": "",
+    "args": "",
+    "category": "",
+    "group": "",
+    "tags": [],
+    "platform": "",
+    "status": "Not Installed",
+    "exeIconRelPath": "icons/6a341ef5ca34e6b2080c7fa50476329a.png",
+    "allowedClientIps": []
+  },
+  {
+    "id": 3,
+    "name": "FAFAFA",
+    "exePath": "",
+    "args": "",
+    "category": "",
+    "group": "",
+    "tags": [],
+    "platform": "",
+    "status": "Not Installed",
+    "exeIconRelPath": "icons/b3401d6b93fe24f37faaa95003d82696.png",
+    "allowedClientIps": []
+  },
+  {
+    "id": 4,
+    "name": "AFAF",
+    "exePath": "",
+    "args": "",
+    "category": "",
+    "group": "",
+    "tags": [],
+    "platform": "",
+    "status": "Not Installed",
+    "exeIconRelPath": "icons/2b9f80e598d24ffa729f7472428e51e4.png",
+    "allowedClientIps": []
+  }
+]
