@@ -1,0 +1,14 @@
+{
+  "themeFamilyId": "vs-teal",
+  "themeAppearance": "dark",
+  "shopName": "EZJR",
+  "gameOrder": "A-Z",
+  "whenLaunchingGame": "normal",
+  "gameIconSize": "medium",
+  "categoryPosition": "top-left",
+  "quickAccessPosition": "center-right",
+  "tagsPosition": "top-left",
+  "showTags": true,
+  "showQuickAccess": true,
+  "runningText": ""
+}

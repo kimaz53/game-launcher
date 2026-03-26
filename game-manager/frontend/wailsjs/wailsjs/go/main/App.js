@@ -30,6 +30,10 @@ export function ImportGameIcon(arg1) {
   return window['go']['main']['App']['ImportGameIcon'](arg1);
 }
 
+export function ImportSettingsImage(arg1, arg2) {
+  return window['go']['main']['App']['ImportSettingsImage'](arg1, arg2);
+}
+
 export function LoadCategoriesJSON() {
   return window['go']['main']['App']['LoadCategoriesJSON']();
 }

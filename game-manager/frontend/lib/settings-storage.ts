@@ -5,6 +5,9 @@ export type ThemeAppearance = 'dark' | 'light'
 export type Settings = {
   themeFamilyId?: string
   themeAppearance?: ThemeAppearance
+  // Additional app settings are stored in `settings.json`.
+  // The app shell only uses theme-related keys, but the settings page may persist others.
+  [key: string]: unknown
 }
 
 function normalizeSettings(raw: unknown): Settings {
@@ -12,12 +15,17 @@ function normalizeSettings(raw: unknown): Settings {
   const obj = raw as Record<string, unknown>
   const themeFamilyId = typeof obj.themeFamilyId === 'string' ? obj.themeFamilyId : undefined
   const appearanceRaw = obj.themeAppearance
-  const themeAppearance: ThemeAppearance | undefined =
-    appearanceRaw === 'light' ? 'light' : appearanceRaw === 'dark' ? 'dark' : undefined
-  return {
-    themeFamilyId,
-    themeAppearance,
-  }
+  const themeAppearance: ThemeAppearance | undefined = appearanceRaw === 'light' ? 'light' : appearanceRaw === 'dark' ? 'dark' : undefined
+
+  // Preserve any unknown settings keys so other settings pages can round-trip their values.
+  // Also ensure we don't keep invalid theme values around.
+  const out: Settings = { ...obj }
+  if (themeFamilyId) out.themeFamilyId = themeFamilyId
+  else delete out.themeFamilyId
+  if (themeAppearance) out.themeAppearance = themeAppearance
+  else delete out.themeAppearance
+
+  return out
 }
 
 async function loadFromWails(): Promise<Settings> {

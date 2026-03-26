@@ -2,10 +2,9 @@ html,
 body {
   padding: 0;
   margin: 0;
-  height: 100vh;
-  width: 100vw;
-  background-color: #0093E9;
-  background-image: linear-gradient(160deg, #0093E9 0%, #80D0C7 100%);
+  height: 100%;
+  width: 100%;
+  background-color: var(--gc-app-bg, #08143a);
   background-repeat: no-repeat;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
@@ -20,3 +19,54 @@ a {
 * {
   box-sizing: border-box;
 }
+
+:root {
+  --gc-app-bg: #08143a;
+  --gc-panel: #10254a;
+  --gc-panel-alt: #27384f;
+  --gc-border: #27385a;
+  --gc-text: #ecf3ff;
+  --gc-muted: #a8b7d9;
+  --gc-primary: #3b82f6;
+  --gc-primary-hover: #2563eb;
+}
+
+.ui-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.ui-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.ui-btn-default {
+  background: var(--gc-primary);
+  color: var(--gc-text);
+}
+.ui-btn-default:hover { background: var(--gc-primary-hover); }
+.ui-btn-secondary {
+  background: var(--gc-panel-alt);
+  border-color: var(--gc-border);
+  color: var(--gc-text);
+}
+.ui-btn-secondary:hover { background: var(--gc-panel); }
+.ui-btn-ghost {
+  background: transparent;
+  color: var(--gc-text);
+}
+.ui-btn-size-default { min-height: 36px; padding: 0 12px; }
+.ui-btn-size-sm { min-height: 30px; padding: 0 10px; }
+.ui-btn-size-icon { width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+
+.ui-input {
+  width: 100%;
+  border: 1px solid var(--gc-border);
+  background: var(--gc-panel-alt);
+  color: var(--gc-text);
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+}
+.ui-input::placeholder { color: var(--gc-muted); }

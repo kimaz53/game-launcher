@@ -15,6 +15,8 @@ export function ImportCoverImage(arg1:string,arg2:number):Promise<string>;
 
 export function ImportGameIcon(arg1:string):Promise<string>;
 
+export function ImportSettingsImage(arg1:string,arg2:string):Promise<string>;
+
 export function LoadCategoriesJSON():Promise<string>;
 
 export function LoadClientsJSON():Promise<string>;

@@ -1,4 +1,15 @@
 {
   "themeFamilyId": "vs-blue",
-  "themeAppearance": "dark"
+  "themeAppearance": "dark",
+  "clients": [],
+  "shopName": "EZJR",
+  "gameOrder": "A-Z",
+  "whenLaunchingGame": "normal",
+  "gameIconSize": "large",
+  "categoryPosition": "center-left",
+  "quickAccessPosition": "top-center",
+  "tagsPosition": "top-left",
+  "showTags": true,
+  "showQuickAccess": true,
+  "runningText": "I'm a running text"
 }

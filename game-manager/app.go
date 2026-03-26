@@ -945,6 +945,63 @@ func (a *App) ImportCoverImage(sourcePath string, gameID int) (string, error) {
 	return rel, nil
 }
 
+// ImportSettingsImage copies a settings asset image into data/settings/ and returns a relative path.
+// kind must be "background" or "logo".
+func (a *App) ImportSettingsImage(sourcePath string, kind string) (string, error) {
+	sourcePath = strings.TrimSpace(sourcePath)
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if sourcePath == "" {
+		return "", nil
+	}
+	if kind != "background" && kind != "logo" {
+		return "", fmt.Errorf("invalid settings image kind: %s", kind)
+	}
+
+	abs, err := filepath.Abs(sourcePath)
+	if err != nil {
+		abs = sourcePath
+	}
+
+	src, err := os.Open(abs)
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+
+	dataDir, err := a.portableDataDir()
+	if err != nil {
+		return "", err
+	}
+
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(abs)))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+	default:
+		ext = ".png"
+	}
+
+	settingsDir := filepath.Join(dataDir, "settings")
+	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+		return "", err
+	}
+
+	filename := kind + ext
+	rel := filepath.ToSlash(filepath.Join("settings", filename))
+	dest := filepath.Join(dataDir, filepath.FromSlash(rel))
+
+	dst, err := os.Create(dest)
+	if err != nil {
+		return "", err
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", err
+	}
+
+	return rel, nil
+}
+
 // GetCoverDataURL returns a data: URL for a cover file stored under the portable data directory.
 func (a *App) GetCoverDataURL(relPath string) string {
 	relPath = strings.TrimSpace(relPath)

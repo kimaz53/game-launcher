@@ -1,0 +1,1 @@
+[{"name":"Client1","ip":"192.168.1.10","type":"vip"},{"name":"Client2","ip":"192.168.1.11","type":"vip"},{"name":"Client3","ip":"192.168.1.12","type":"non-vip"},{"name":"Client4","ip":"192.168.1.13","type":"non-vip"},{"name":"Client5","ip":"192.168.1.14","type":"non-vip"}]
