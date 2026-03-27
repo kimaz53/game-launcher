@@ -10,6 +10,10 @@ export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
 
+export function LaunchGame(arg1, arg2) {
+  return window['go']['main']['App']['LaunchGame'](arg1, arg2);
+}
+
 export function LoadManagerCategoriesJSON() {
   return window['go']['main']['App']['LoadManagerCategoriesJSON']();
 }
@@ -32,4 +36,8 @@ export function LoadManagerTagsJSON() {
 
 export function ReadManagerImageDataURL(arg1) {
   return window['go']['main']['App']['ReadManagerImageDataURL'](arg1);
+}
+
+export function ShowNativeMessage(arg1, arg2) {
+  return window['go']['main']['App']['ShowNativeMessage'](arg1, arg2);
 }

@@ -5,6 +5,8 @@ export function GetComputerName():Promise<string>;
 
 export function Greet(arg1:string):Promise<string>;
 
+export function LaunchGame(arg1:string,arg2:string):Promise<void>;
+
 export function LoadManagerCategoriesJSON():Promise<string>;
 
 export function LoadManagerGamesJSON():Promise<string>;
@@ -16,3 +18,5 @@ export function LoadManagerSettingsJSON():Promise<string>;
 export function LoadManagerTagsJSON():Promise<string>;
 
 export function ReadManagerImageDataURL(arg1:string):Promise<string>;
+
+export function ShowNativeMessage(arg1:string,arg2:string):Promise<void>;

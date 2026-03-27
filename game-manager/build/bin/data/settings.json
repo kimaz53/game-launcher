@@ -7,9 +7,10 @@
   "whenLaunchingGame": "normal",
   "gameIconSize": "large",
   "categoryPosition": "center-left",
-  "quickAccessPosition": "top-center",
+  "quickAccessPosition": "center-right",
   "tagsPosition": "top-left",
   "showTags": true,
   "showQuickAccess": true,
-  "runningText": "I'm a running text"
+  "runningText": "I'm a running text",
+  "backgroundImage": "settings/background.jpg"
 }

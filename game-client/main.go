@@ -23,16 +23,16 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:             "game-client",
-		Width:             1024,
-		Height:            768,
+		Title:             "Game Client",
+		Width:             1920,
+		Height:            1080,
 		MinWidth:          0,
 		MinHeight:         0,
 		MaxWidth:          0,
 		MaxHeight:         0,
-		DisableResize:     false,
-		Fullscreen:        true,
-		Frameless:         false,
+		DisableResize:     true,
+		Fullscreen:        false,
+		Frameless:         true,
 		StartHidden:       false,
 		HideWindowOnClose: false,
 		BackgroundColour:  &options.RGBA{R: 255, G: 255, B: 255, A: 255},

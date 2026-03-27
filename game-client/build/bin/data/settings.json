@@ -1,14 +1,16 @@
 {
   "themeFamilyId": "vs-teal",
   "themeAppearance": "dark",
+  "clients": [],
   "shopName": "EZJR",
   "gameOrder": "A-Z",
   "whenLaunchingGame": "normal",
-  "gameIconSize": "medium",
-  "categoryPosition": "top-left",
-  "quickAccessPosition": "center-right",
+  "gameIconSize": "large",
+  "categoryPosition": "center-left",
+  "quickAccessPosition": "bottom-center",
   "tagsPosition": "top-left",
   "showTags": true,
   "showQuickAccess": true,
-  "runningText": ""
+  "runningText": "I'm a running text",
+  "backgroundImage": "settings/background.jpg"
 }

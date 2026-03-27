@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -174,4 +177,107 @@ func (a *App) ReadManagerImageDataURL(relPath string) string {
 		mime = "image/x-icon"
 	}
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
+}
+
+func splitArgs(raw string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+
+	var out []string
+	var buf []rune
+	var quote rune
+	escaped := false
+
+	flush := func() {
+		if len(buf) == 0 {
+			return
+		}
+		out = append(out, string(buf))
+		buf = buf[:0]
+	}
+
+	for _, r := range raw {
+		if escaped {
+			buf = append(buf, r)
+			escaped = false
+			continue
+		}
+		if r == '\\' {
+			escaped = true
+			continue
+		}
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+				continue
+			}
+			buf = append(buf, r)
+			continue
+		}
+		if r == '"' || r == '\'' {
+			quote = r
+			continue
+		}
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			flush()
+			continue
+		}
+		buf = append(buf, r)
+	}
+
+	if escaped {
+		buf = append(buf, '\\')
+	}
+	if quote != 0 {
+		return nil, errors.New("invalid arguments: unmatched quote")
+	}
+	flush()
+	return out, nil
+}
+
+func (a *App) LaunchGame(exePath string, args string) error {
+	exePath = strings.TrimSpace(exePath)
+	if exePath == "" {
+		return errors.New("game executable path is empty")
+	}
+
+	info, err := os.Stat(exePath)
+	if err != nil {
+		return fmt.Errorf("unable to access executable: %w", err)
+	}
+	if info.IsDir() {
+		return errors.New("executable path points to a directory")
+	}
+
+	parts, err := splitArgs(args)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(exePath, parts...)
+	cmd.Dir = filepath.Dir(exePath)
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to launch game: %w", err)
+	}
+
+	runtime.LogInfo(a.ctx, "launched game: "+exePath)
+	return nil
+}
+
+func (a *App) ShowNativeMessage(title string, message string) {
+	title = strings.TrimSpace(title)
+	message = strings.TrimSpace(message)
+	if title == "" {
+		title = "Game Launcher"
+	}
+	if message == "" {
+		message = "Something went wrong."
+	}
+	_, _ = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type:    runtime.InfoDialog,
+		Title:   title,
+		Message: message,
+	})
 }
