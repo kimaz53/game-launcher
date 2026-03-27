@@ -24,14 +24,14 @@ func main() {
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:             "Game Client",
-		Width:             1920,
-		Height:            1080,
-		MinWidth:          0,
-		MinHeight:         0,
+		Width:             0,
+		Height:            0,
+		MinWidth:          1920,
+		MinHeight:         1080,
 		MaxWidth:          0,
 		MaxHeight:         0,
 		DisableResize:     true,
-		Fullscreen:        false,
+		Fullscreen:        true,
 		Frameless:         true,
 		StartHidden:       false,
 		HideWindowOnClose: false,
@@ -44,7 +44,7 @@ func main() {
 		OnDomReady:        app.domReady,
 		OnBeforeClose:     app.beforeClose,
 		OnShutdown:        app.shutdown,
-		WindowStartState:  options.Maximised,
+		WindowStartState:  options.Fullscreen,
 		Bind: []interface{}{
 			app,
 		},

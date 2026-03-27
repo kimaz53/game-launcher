@@ -668,10 +668,10 @@ export default function Home() {
         </div>
 
         <div className='flex items-center'>
-          <Button className='bg-transparent text-theme-text' aria-label="Minimize" onClick={() => WindowMinimise()}>
+          <Button size='icon' className='!rounded-full bg-transparent text-theme-text' aria-label="Minimize" onClick={() => WindowMinimise()}>
             <Minus className="h-4 w-4" />
           </Button>
-          <Button className='bg-transparent text-theme-text hover:!bg-theme-error' aria-label="Close" onClick={() => Quit()}>
+          <Button size='icon' className='!rounded-full bg-transparent text-theme-text hover:!bg-theme-error' aria-label="Close" onClick={() => Quit()}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -690,10 +690,10 @@ export default function Home() {
                     variant="ghost"
                     className={cn(
                       "h-auto border-0 !p-1 hover:bg-transparent",
-                      selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
+                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
-                    onClick={() => setSelectedGameId(g.id)}
+                    // onClick={() => setSelectedGameId(g.id)}
                     onDoubleClick={() => void handleLaunchGame(g)}
                   >
                     <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
@@ -716,10 +716,10 @@ export default function Home() {
                     variant="ghost"
                     className={cn(
                       "h-auto border-0 !p-1 hover:bg-transparent",
-                      selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
+                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
-                    onClick={() => setSelectedGameId(g.id)}
+                    // onClick={() => setSelectedGameId(g.id)}
                     onDoubleClick={() => void handleLaunchGame(g)}
                   >
                     <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
@@ -775,13 +775,15 @@ export default function Home() {
                     variant="ghost"
                     className={cn(
                       "h-auto flex-col items-center gap-2 border-0 bg-transparent !p-0 m-1 text-inherit hover:bg-transparent rounded-md",
-                      selectedGameId === game.id ? 'bg-theme-primary/20 ring-1 ring-theme-primary' : ''
+                      // selectedGameId === game.id ? '!bg-theme-primary/20' : ''
                     )}
                     onClick={() => setSelectedGameId(game.id)}
                     onDoubleClick={() => void handleLaunchGame(game)}
                   >
                     <GameArtwork game={game} iconSize={iconSize} tagsPosition={tagsPosition} showTags={showTags} />
-                    <div className="max-w-40 text-center text-[13px] text-theme-text">{game.name}</div>
+                    <div className={cn("max-w-40 text-center text-[13px] text-theme-text pb-2 text-wrap px-1",
+                      // selectedGameId == game.id && '!text-theme-primary'
+                    )}>{game.name}</div>
                   </Button>
                 ))}
               </div>
@@ -835,10 +837,10 @@ export default function Home() {
                     variant="ghost"
                     className={cn(
                       "h-auto border-0 !p-1 hover:bg-transparent",
-                      selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
+                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
-                    onClick={() => setSelectedGameId(g.id)}
+                    // onClick={() => setSelectedGameId(g.id)}
                     onDoubleClick={() => void handleLaunchGame(g)}
                   >
                     <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
@@ -861,10 +863,10 @@ export default function Home() {
                     variant="ghost"
                     className={cn(
                       "h-auto border-0 !p-1 hover:bg-transparent",
-                      selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
+                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
-                    onClick={() => setSelectedGameId(g.id)}
+                    // onClick={() => setSelectedGameId(g.id)}
                     onDoubleClick={() => void handleLaunchGame(g)}
                   >
                     <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
