@@ -681,7 +681,7 @@ export default function Home() {
         {showQuickAccess && quickIsStackedTop ? (
           <div className="flex w-full justify-center">
             <aside className="flex flex-col items-center gap-2">
-              <Badge className='!py-0.5 !text-theme-muted'>Quick Access</Badge>
+              {/* <Badge className='!py-0.5 !text-theme-muted'>Quick Access</Badge> */}
               <div className='flex items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
                 {quickAccessGames.map((g) => (
                   <Button
@@ -707,8 +707,8 @@ export default function Home() {
         {showQuickAccess && quickIsLeft ? (
           <div className={`order-[-1] flex ${quickSlotAlignClass}`}>
             <aside className="flex flex-col items-center gap-2">
-              <Badge className='!py-0.5'>Quick Access</Badge>
-              <div className='flex flex-col items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
+              <Badge className='!py-0.5 !border-none'>Quick Access</Badge>
+              <div className='flex flex-col items-center gap-2.5 bg-theme-secondary/50 rounded-lg p-1 w-full'>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -740,7 +740,7 @@ export default function Home() {
                     type="button"
                     variant={tab === activeTab ? 'default' : 'secondary'}
                     size="sm"
-                    className={cn('w-full', tab === activeTab ? '' : 'text-theme-muted')}
+                    className={cn('', tab === activeTab ? '' : 'text-theme-muted')}
                     onClick={() => setActiveTab(tab)}
                   >
                     {tab}
@@ -814,7 +814,7 @@ export default function Home() {
                     type="button"
                     variant={tab === activeTab ? 'default' : 'secondary'}
                     size="sm"
-                    className={cn('w-full', tab === activeTab ? '' : 'text-theme-muted')}
+                    className={cn('', tab === activeTab ? '' : 'text-theme-muted')}
                     onClick={() => setActiveTab(tab)}
                   >
                     {tab}
@@ -828,8 +828,8 @@ export default function Home() {
         {showQuickAccess && quickIsRight ? (
           <div className={`order-1 flex ${quickSlotAlignClass}`}>
             <aside className="flex flex-col items-center gap-2">
-              <Badge className='!py-0.5'>Quick Access</Badge>
-              <div className='flex flex-col items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
+              {/* <Badge className='!py-0.5'>Quick Access</Badge> */}
+              <div className='flex flex-col items-center gap-2 bg-theme-secondary/50 rounded-lg p-1 w-full'>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -854,7 +854,7 @@ export default function Home() {
         {showQuickAccess && quickIsStackedBottom ? (
           <div className="flex w-full justify-center">
             <aside className="flex flex-col items-center gap-2">
-              <Badge className='!py-0.5'>Quick Access</Badge>
+              {/* <Badge className='!py-0.5'>Quick Access</Badge> */}
               <div className='flex items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
                 {quickAccessGames.map((g) => (
                   <Button

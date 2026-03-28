@@ -2,16 +2,16 @@
   {
     "id": 1,
     "name": "Valorant",
-    "exePath": "",
-    "args": "",
+    "exePath": "C:\\Riot Games\\Riot Client\\RiotClientServices.exe",
+    "args": "--launch-product=valorant --launch-patchline=live",
     "category": "Online Games",
     "group": "",
     "tags": [
       "Shooting Game",
       "Action"
     ],
-    "platform": "",
-    "status": "Not Installed",
+    "platform": "Local",
+    "status": "Installed",
     "coverRelPath": "covers/1.png",
     "exeIconRelPath": "icons/53dc27f05bedcc1dcdb8f04f7b61c5a3.png",
     "allowedClientIps": []
