@@ -7,6 +7,8 @@ export function GetCoverDataURL(arg1:string):Promise<string>;
 
 export function GetDataDir():Promise<string>;
 
+export function GetWindowsStartupStatus():Promise<string>;
+
 export function Greet(arg1:string):Promise<string>;
 
 export function ImportCategoryIcon(arg1:string):Promise<string>;
@@ -46,3 +48,5 @@ export function SaveQuickAccessJSON(arg1:string):Promise<void>;
 export function SaveSettingsJSON(arg1:string):Promise<void>;
 
 export function SaveTagsJSON(arg1:string):Promise<void>;
+
+export function SetLaunchOnWindowsStartup(arg1:boolean):Promise<void>;

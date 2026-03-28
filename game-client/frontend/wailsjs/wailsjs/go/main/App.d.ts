@@ -3,6 +3,8 @@
 
 export function GetComputerName():Promise<string>;
 
+export function GetWindowsStartupStatus():Promise<string>;
+
 export function Greet(arg1:string):Promise<string>;
 
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
@@ -20,3 +22,5 @@ export function LoadManagerTagsJSON():Promise<string>;
 export function ReadManagerImageDataURL(arg1:string):Promise<string>;
 
 export function ShowNativeMessage(arg1:string,arg2:string):Promise<void>;
+
+export function ShowNativeMessageWithIcon(arg1:string,arg2:string,arg3:string):Promise<void>;

@@ -8,11 +8,15 @@ import { Switch } from '@/components/ui/switch'
 import { saveSettings, loadSettings, type Settings as StoredSettings } from '@/lib/settings-storage'
 import { hasWailsApp } from '@/lib/games-storage'
 import { yieldForNativeFileDialog } from '@/lib/yield-for-native-file-dialog'
-import { ImportSettingsImage as ImportSettingsImageWails, PickImageFile as PickImageFileWails } from '@/wailsjs/wailsjs/go/main/App'
+import {
+  GetWindowsStartupStatus,
+  ImportSettingsImage as ImportSettingsImageWails,
+  PickImageFile as PickImageFileWails,
+  SetLaunchOnWindowsStartup,
+} from '@/wailsjs/wailsjs/go/main/App'
 
 export default function SettingsPage() {
   const [hydrated, setHydrated] = useState(false)
-  const [working, setWorking] = useState(false)
 
   const [shopName, setShopName] = useState('')
   const [gameOrder, setGameOrder] = useState<'A-Z' | 'Z-A'>('A-Z')
@@ -29,7 +33,10 @@ export default function SettingsPage() {
     | 'center-left' | 'center-right'>('top-left')
   const [showTags, setShowTags] = useState(true)
   const [showQuickAccess, setShowQuickAccess] = useState(true)
+  const [showQuickAccessTitle, setShowQuickAccessTitle] = useState(true)
+  const [showFooter, setShowFooter] = useState(true)
   const [runningText, setRunningText] = useState('')
+  const [launchOnWindowsStartup, setLaunchOnWindowsStartup] = useState(false)
 
   const [backgroundImagePath, setBackgroundImagePath] = useState('')
   const [logoImagePath, setLogoImagePath] = useState('')
@@ -49,7 +56,10 @@ export default function SettingsPage() {
         if (rawGameOrder === 'A-Z' || rawGameOrder === 'Z-A') setGameOrder(rawGameOrder)
 
         const rawLaunch = (stored as Record<string, unknown>).whenLaunchingGame
-        if (rawLaunch === 'minimized' || rawLaunch === 'normal') setWhenLaunchingGame(rawLaunch)
+        if (rawLaunch === 'minimized' || rawLaunch === 'normal' || rawLaunch === 'exit') setWhenLaunchingGame(rawLaunch)
+
+        const rawStartup = (stored as Record<string, unknown>).launchOnWindowsStartup
+        if (typeof rawStartup === 'boolean') setLaunchOnWindowsStartup(rawStartup)
 
         const rawIconSize = (stored as Record<string, unknown>).gameIconSize
         if (rawIconSize === 'small' || rawIconSize === 'medium' || rawIconSize === 'large') setGameIconSize(rawIconSize)
@@ -73,6 +83,12 @@ export default function SettingsPage() {
         const rawShowQuickAccess = (stored as Record<string, unknown>).showQuickAccess
         if (typeof rawShowQuickAccess === 'boolean') setShowQuickAccess(rawShowQuickAccess)
 
+        const rawShowQuickAccessTitle = (stored as Record<string, unknown>).showQuickAccessTitle
+        if (typeof rawShowQuickAccessTitle === 'boolean') setShowQuickAccessTitle(rawShowQuickAccessTitle)
+
+        const rawShowFooter = (stored as Record<string, unknown>).showFooter
+        if (typeof rawShowFooter === 'boolean') setShowFooter(rawShowFooter)
+
         const rawRunningText = (stored as Record<string, unknown>).runningText
         if (typeof rawRunningText === 'string') setRunningText(rawRunningText)
 
@@ -81,6 +97,13 @@ export default function SettingsPage() {
 
         const rawLogo = (stored as Record<string, unknown>).logoImage
         if (typeof rawLogo === 'string') setLogoImagePath(rawLogo)
+
+        try {
+          const st = await GetWindowsStartupStatus()
+          if (st === 'on' || st === 'off') setLaunchOnWindowsStartup(st === 'on')
+        } catch {
+          // non-Windows or Wails unavailable; keep value from settings.json
+        }
       } catch {
         // ignore; keep defaults
       } finally {
@@ -107,7 +130,10 @@ export default function SettingsPage() {
       tagsPosition,
       showTags,
       showQuickAccess,
+      showQuickAccessTitle,
+      showFooter,
       runningText,
+      launchOnWindowsStartup,
       backgroundImage: backgroundImagePath || undefined,
       logoImage: logoImagePath || undefined,
     }),
@@ -121,11 +147,29 @@ export default function SettingsPage() {
       tagsPosition,
       showTags,
       showQuickAccess,
+      showQuickAccessTitle,
+      showFooter,
       runningText,
+      launchOnWindowsStartup,
       backgroundImagePath,
       logoImagePath,
     ]
   )
+
+  useEffect(() => {
+    if (!canSave) return
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          await saveSettings(savePayload as StoredSettings)
+          await SetLaunchOnWindowsStartup(launchOnWindowsStartup)
+        } catch {
+          // ignore persist errors
+        }
+      })()
+    }, 450)
+    return () => window.clearTimeout(timer)
+  }, [canSave, savePayload])
 
   const handlePickImage = async (kind: 'background' | 'logo', setPath: (v: string) => void) => {
     if (!hasWailsApp()) return
@@ -147,18 +191,6 @@ export default function SettingsPage() {
   const handleClearBackground = () => setBackgroundImagePath('')
   const handleClearLogo = () => setLogoImagePath('')
 
-  const handleSave = async () => {
-    if (!canSave) return
-    setWorking(true)
-    try {
-      // Persist to the app portable data dir (os.Executable()/data/settings.json).
-      // When running from `build/bin`, this maps to `build/bin/data/settings.json`.
-      await saveSettings(savePayload as StoredSettings)
-    } finally {
-      setWorking(false)
-    }
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <Head>
@@ -167,19 +199,9 @@ export default function SettingsPage() {
 
       <div className="min-h-0 flex-1 rounded-xl bg-theme-card">
         <div className="h-full overflow-auto rounded-lg border border-theme-border bg-theme-app p-6">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div>
-              <div className="text-lg font-semibold text-theme-text">Settings</div>
-              <div className="text-xs text-theme-muted">Configure launcher layout and visuals.</div>
-            </div>
-            <Button
-              type="button"
-              className="bg-theme-primary text-theme-text hover:bg-theme-primary-hover"
-              onClick={() => void handleSave()}
-              disabled={!canSave || working}
-            >
-              {working ? 'Saving…' : 'Save'}
-            </Button>
+          <div className="mb-4">
+            <div className="text-lg font-semibold text-theme-text">Settings</div>
+            <div className="text-xs text-theme-muted">Configure launcher layout and visuals. Changes save automatically.</div>
           </div>
 
           <div className="space-y-4">
@@ -204,6 +226,20 @@ export default function SettingsPage() {
                   <SelectItem value="Z-A">Z-A</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex min-h-0 flex-col justify-between gap-2 sm:flex-row sm:items-center">
+              <div className="text-sm text-theme-muted">Launch on Windows startup</div>
+              <div className="flex flex-col items-center gap-1 sm:items-end">
+                <Switch
+                  checked={launchOnWindowsStartup}
+                  onCheckedChange={setLaunchOnWindowsStartup}
+                  disabled={!canSave}
+                />
+                <span className="text-center text-xs text-theme-muted sm:text-right">
+                  Adds game-client.exe (same folder as Game Manager) to Windows startup. The switch reloads from HKCU\…\Run (EZJRGameClient).
+                </span>
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -260,12 +296,16 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <div className='flex items-center justify-between'>
+              <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2'>
                 <label className="text-sm text-theme-muted">Quick Access Position</label>
-                <div className="flex items-center space-x-1.5">
-                  <label className="text-sm text-theme-muted">Show Quick Access</label>
-                  <div className="flex items-center">
+                <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+                  <div className="flex items-center space-x-1.5">
+                    <label className="text-sm text-theme-muted">Show Quick Access</label>
                     <Switch checked={showQuickAccess} onCheckedChange={setShowQuickAccess} />
+                  </div>
+                  <div className="flex items-center space-x-1.5">
+                    <label className="text-sm text-theme-muted">Show Title</label>
+                    <Switch checked={showQuickAccessTitle} onCheckedChange={setShowQuickAccessTitle} disabled={!showQuickAccess} />
                   </div>
                 </div>
               </div>
@@ -293,7 +333,13 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm text-theme-muted">Running Text</label>
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-sm text-theme-muted">Running Text</label>
+                <div className="flex items-center space-x-1.5">
+                  <label className="text-sm text-theme-muted">Show footer</label>
+                  <Switch checked={showFooter} onCheckedChange={setShowFooter} />
+                </div>
+              </div>
               <Input
                 value={runningText}
                 onChange={(e) => setRunningText(e.target.value)}
@@ -372,7 +418,10 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-sm text-theme-muted">Logo Image</label>
                 <div className='flex items-center space-x-1.5'>
-                  <Input value={logoImagePath} disabled placeholder="No image selected" className="bg-theme-sidebar" />
+                  {logoImagePath
+                    ? <div className='bg-theme-sidebar w-full rounded-md p-1.5 px-3 border-theme-border border text-sm text-slate-500'>{logoImagePath}</div>
+                    : <Input value={logoImagePath} disabled placeholder="No image selected" className="bg-theme-sidebar" />
+                  }
                   <div className="flex gap-2">
                     <Button
                       type="button"

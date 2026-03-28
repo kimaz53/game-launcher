@@ -6,6 +6,10 @@ export function GetComputerName() {
   return window['go']['main']['App']['GetComputerName']();
 }
 
+export function GetWindowsStartupStatus() {
+  return window['go']['main']['App']['GetWindowsStartupStatus']();
+}
+
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
@@ -40,4 +44,8 @@ export function ReadManagerImageDataURL(arg1) {
 
 export function ShowNativeMessage(arg1, arg2) {
   return window['go']['main']['App']['ShowNativeMessage'](arg1, arg2);
+}
+
+export function ShowNativeMessageWithIcon(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ShowNativeMessageWithIcon'](arg1, arg2, arg3);
 }

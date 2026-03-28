@@ -1,18 +1,27 @@
 import Head from 'next/head'
 import { useEffect, useMemo, useState } from 'react'
-import { Minus, X } from 'lucide-react'
+import { FolderOpen, Gamepad2, LayoutGrid, Minus, Search, X } from 'lucide-react'
 import { Button } from '../components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog'
 import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import {
   GetComputerName,
+  GetWindowsStartupStatus,
   LaunchGame,
   LoadManagerCategoriesJSON,
   LoadManagerGamesJSON,
   LoadManagerQuickAccessJSON,
   LoadManagerSettingsJSON,
   ReadManagerImageDataURL,
-  ShowNativeMessage,
 } from '../wailsjs/wailsjs/go/main/App'
 import { BrowserOpenURL, Quit, WindowMinimise } from '../wailsjs/wailsjs/runtime/runtime'
 import { cn } from '../lib/utils'
@@ -28,18 +37,23 @@ type ManagerGame = {
   exeIconRelPath?: string
 }
 
-type ManagerCategory = { name: string }
+type ManagerCategory = { name: string; iconRelPath?: string }
+
+type CategoryTabItem = { key: string; label: string; iconRelPath?: string }
 type IconSize = 'small' | 'medium' | 'large'
 
 type ManagerSettings = {
   shopName?: string
   gameOrder?: 'A-Z' | 'Z-A'
+  whenLaunchingGame?: 'minimized' | 'normal' | 'exit'
   gameIconSize?: IconSize
   categoryPosition?: string
   quickAccessPosition?: string
   tagsPosition?: string
   showTags?: boolean
   showQuickAccess?: boolean
+  showQuickAccessTitle?: boolean
+  showFooter?: boolean
   runningText?: string
   backgroundImage?: string
   logoImage?: string
@@ -55,6 +69,7 @@ function parseMulti(csv: string | undefined): string[] {
 }
 
 const imageCache = new Map<string, string>()
+const categoryIconCache = new Map<string, string>()
 type ThemeAppearance = 'dark' | 'light'
 type ThemePalette = {
   appBackground: string
@@ -354,6 +369,68 @@ function isCategoryCenterRight(pos: string): boolean {
   return pos === 'center-right'
 }
 
+function categoryTabRowClass(tabAlign: 'bar' | 'left' | 'right'): string {
+  switch (tabAlign) {
+    case 'left':
+      return 'flex w-full min-w-0 items-center justify-start gap-2'
+    case 'right':
+      return 'flex w-full min-w-0 items-center justify-end gap-2'
+    default:
+      return 'flex min-w-0 items-center gap-2'
+  }
+}
+
+function CategoryTabIcon({ relPath }: { relPath?: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const p = relPath?.trim()
+    if (!p) {
+      setSrc(null)
+      return
+    }
+    const cached = categoryIconCache.get(p)
+    if (cached) {
+      setSrc(cached)
+      return
+    }
+    void ReadManagerImageDataURL(p).then((data) => {
+      if (cancelled || !data) return
+      categoryIconCache.set(p, data)
+      setSrc(data)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [relPath])
+
+  const p = relPath?.trim()
+  if (!p) {
+    return <FolderOpen className="h-4 w-4 shrink-0 text-theme-muted" aria-hidden />
+  }
+  if (!src) {
+    return <FolderOpen className="h-4 w-4 shrink-0 text-theme-muted opacity-50" aria-hidden />
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" className="h-4 w-4 shrink-0 rounded object-cover" />
+  )
+}
+
+function CategoryTabLabel({ tab, tabAlign }: { tab: CategoryTabItem; tabAlign: 'bar' | 'left' | 'right' }) {
+  return (
+    <span className={categoryTabRowClass(tabAlign)}>
+      {tab.key === 'ALL' ? (
+        <LayoutGrid className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+      ) : (
+        <CategoryTabIcon relPath={tab.iconRelPath} />
+      )}
+      <span className="truncate">{tab.label}</span>
+    </span>
+  )
+}
+
 function tagPosClass(pos: string): string {
   switch (pos) {
     case 'top-center': return 'top-1.5 left-1/2 -translate-x-1/2 justify-center'
@@ -364,6 +441,17 @@ function tagPosClass(pos: string): string {
     case 'bottom-center': return 'bottom-1.5 left-1/2 -translate-x-1/2 justify-center'
     case 'bottom-right': return 'bottom-1.5 right-1.5 justify-end'
     default: return 'top-1.5 left-1.5 justify-start'
+  }
+}
+
+function iconOnlyImageClass(iconSize: IconSize): string {
+  switch (iconSize) {
+    case 'small':
+      return 'h-[3.125rem] w-[3.125rem] object-fill'
+    case 'large':
+      return 'max-h-[7rem] max-w-[7rem] object-contain'
+    default:
+      return 'max-h-[5.5rem] max-w-[5.5rem] object-contain'
   }
 }
 
@@ -382,10 +470,19 @@ function GameArtwork({
 }) {
   const [src, setSrc] = useState('')
 
+  const coverTrim = game.coverRelPath?.trim()
+  const exeTrim = game.exeIconRelPath?.trim()
+
+  const usesCoverArt =
+    iconSize !== 'small' && !!coverTrim
+
   useEffect(() => {
     let cancelled = false
     async function run() {
-      const relPath = iconSize === 'small' ? game.exeIconRelPath : game.coverRelPath
+      const relPath =
+        iconSize === 'small'
+          ? exeTrim
+          : coverTrim || exeTrim || undefined
       if (!relPath) {
         setSrc('')
         return
@@ -404,7 +501,7 @@ function GameArtwork({
     return () => {
       cancelled = true
     }
-  }, [game.coverRelPath, game.exeIconRelPath, iconSize])
+  }, [coverTrim, exeTrim, iconSize])
 
   const cls =
     iconSize === 'small'
@@ -413,16 +510,26 @@ function GameArtwork({
         ? 'h-[220px] w-[160px]'
         : 'h-[180px] w-[132px]'
 
-  const artworkClass = cn(
-    `rounded-md border border-theme-border bg-theme-sidebar object-cover flex items-center justify-center`,
-    cls, className
+  const containerClass = cn(
+    'rounded-md border border-theme-border bg-theme-sidebar flex items-center justify-center overflow-hidden',
+    cls,
+    className
   )
+
+  const coverImgClass = 'h-full w-full object-cover'
+  const iconImgClass = cn('shrink-0', iconOnlyImageClass(iconSize))
 
   if (src) {
     return (
       <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt={game.name} className={artworkClass} />
+        <div className={containerClass}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={game.name}
+            className={usesCoverArt ? coverImgClass : iconImgClass}
+          />
+        </div>
         {showTags && game.tags?.length ? (
           <div className={`absolute flex max-w-[90%] flex-wrap gap-1 ${tagPosClass(tagsPosition)}`}>
             {game.tags.slice(0, 3).map((tag) => (
@@ -438,7 +545,7 @@ function GameArtwork({
 
   return (
     <div className="relative">
-      <div className={artworkClass}>
+      <div className={containerClass}>
         <div className="text-2xl font-bold text-theme-muted">{game.name.slice(0, 1).toUpperCase()}</div>
       </div>
       {showTags && iconSize !== 'small' && game.tags?.length ? (
@@ -460,11 +567,27 @@ export default function Home() {
   const [quickAccessIds, setQuickAccessIds] = useState<number[]>([])
   const [settings, setSettings] = useState<ManagerSettings>({})
   const [activeTab, setActiveTab] = useState('ALL')
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [committedSearch, setCommittedSearch] = useState('')
   const [computerName, setComputerName] = useState('COMPUTER')
   const [backgroundImageSrc, setBackgroundImageSrc] = useState('')
   const [logoImageSrc, setLogoImageSrc] = useState('')
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
+  const [launchDialog, setLaunchDialog] = useState<{
+    title: string
+    message: string
+    iconSrc?: string
+    gameName?: string
+  } | null>(null)
+  const [windowsStartupStatus, setWindowsStartupStatus] = useState<'on' | 'off' | ''>('')
+
+  useEffect(() => {
+    void GetWindowsStartupStatus()
+      .then((s) => {
+        if (s === 'on' || s === 'off') setWindowsStartupStatus(s)
+      })
+      .catch(() => { })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -556,12 +679,24 @@ export default function Home() {
 
   const iconSize: IconSize = settings.gameIconSize === 'small' || settings.gameIconSize === 'large' ? settings.gameIconSize : 'medium'
   const sortOrder = settings.gameOrder === 'Z-A' ? 'Z-A' : 'A-Z'
-  const shopName = settings.shopName?.trim() || 'LOGO'
+  const shopName = settings.shopName?.trim() || 'EZJR Menu'
   const categoryPosition = normalizePos(settings.categoryPosition, 'top-left')
   const quickAccessPosition = normalizePos(settings.quickAccessPosition, 'center-right')
   const tagsPosition = normalizePos(settings.tagsPosition, 'top-left')
   const showTags = settings.showTags !== false
   const showQuickAccess = settings.showQuickAccess !== false
+  const showQuickAccessTitle = settings.showQuickAccessTitle !== false
+  const showFooter = settings.showFooter !== false
+  const whenLaunchingMode: 'minimized' | 'normal' | 'exit' =
+    settings.whenLaunchingGame === 'minimized' ||
+      settings.whenLaunchingGame === 'normal' ||
+      settings.whenLaunchingGame === 'exit'
+      ? settings.whenLaunchingGame
+      : 'normal'
+
+  function commitSearch() {
+    setCommittedSearch(searchInput)
+  }
   const quickIsLeft = quickAccessPosition.endsWith('left')
   const quickIsRight = quickAccessPosition.endsWith('right')
   const quickIsStackedTop = quickAccessPosition === 'top-center'
@@ -577,13 +712,23 @@ export default function Home() {
   // When Quick Access is stacked above/below, we always center it horizontally.
   const quickSlotAlignClass = quickIsStacked ? 'items-center' : quickVerticalClass
 
-  const tabs = useMemo(() => {
-    const fromCategories = categories.map((c) => c.name.trim()).filter(Boolean)
-    return ['ALL', ...fromCategories]
+  const tabItems = useMemo((): CategoryTabItem[] => {
+    const items: CategoryTabItem[] = [{ key: 'ALL', label: 'ALL' }]
+    for (const c of categories) {
+      const name = c.name.trim()
+      if (!name) continue
+      const icon = (c.iconRelPath ?? '').trim()
+      items.push({
+        key: name,
+        label: name,
+        iconRelPath: icon || undefined,
+      })
+    }
+    return items
   }, [categories])
 
   const filteredGames = useMemo(() => {
-    const query = search.trim().toLowerCase()
+    const query = committedSearch.trim().toLowerCase()
     const base = games.filter((g) => {
       if (activeTab !== 'ALL') {
         const cats = parseMulti(g.category)
@@ -595,7 +740,7 @@ export default function Home() {
 
     const sorted = [...base].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
     return sortOrder === 'Z-A' ? sorted.reverse() : sorted
-  }, [games, activeTab, search, sortOrder])
+  }, [games, activeTab, committedSearch, sortOrder])
 
   const quickAccessGames = useMemo(() => {
     const map = new Map<number, ManagerGame>()
@@ -603,22 +748,65 @@ export default function Home() {
     return quickAccessIds.map((id) => map.get(id)).filter(Boolean) as ManagerGame[]
   }, [games, quickAccessIds])
 
-  async function handleLaunchGame(game: ManagerGame) {
-    const exePath = (game.exePath ?? '').trim()
-    if (!exePath) {
-      await ShowNativeMessage('Unable to launch game', `"${game.name}" has no launch path configured.`)
-      return
+  /** In-app only: native MessageBox/TaskDialog in fullscreen WebView2 can crash the host with no visible prompt. */
+  async function showLaunchError(title: string, message: string, game?: ManagerGame) {
+    let iconSrc: string | undefined
+    let gameName = game?.name?.trim()
+    if (game) {
+      const rel = (game.exeIconRelPath ?? '').trim() || (game.coverRelPath ?? '').trim()
+      if (rel) {
+        const cached = imageCache.get(rel)
+        if (cached) {
+          iconSrc = cached
+        } else {
+          const data = await ReadManagerImageDataURL(rel)
+          if (data) {
+            imageCache.set(rel, data)
+            iconSrc = data
+          }
+        }
+      }
     }
+    setLaunchDialog({ title, message, iconSrc, gameName })
+  }
 
+  /** Runs only after a URL/game was started successfully — never on failed launch or missing path. */
+  function applyAfterLaunchBehavior() {
+    if (whenLaunchingMode === 'exit') {
+      Quit()
+    } else if (whenLaunchingMode === 'minimized') {
+      WindowMinimise()
+    }
+  }
+
+  async function handleLaunchGame(game: ManagerGame) {
     try {
-      if (/^https?:\/\//i.test(exePath)) {
-        BrowserOpenURL(exePath)
+      const exePath = (game.exePath ?? '').trim()
+      if (!exePath) {
+        await showLaunchError(
+          'Unable to launch game',
+          `"${game.name}" has no launch path configured. Add a launch path in Game Manager.`,
+          game
+        )
         return
       }
-      await LaunchGame(exePath, game.args ?? '')
+
+      if (/^https?:\/\//i.test(exePath)) {
+        BrowserOpenURL(exePath)
+        applyAfterLaunchBehavior()
+        return
+      }
+
+      try {
+        await LaunchGame(exePath, game.args ?? '')
+        applyAfterLaunchBehavior()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to launch the selected game.'
+        await showLaunchError('Unable to launch game', msg, game)
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to launch the selected game.'
-      await ShowNativeMessage('Unable to launch game', msg)
+      const msg = err instanceof Error ? err.message : 'Unexpected error while launching.'
+      await showLaunchError('Unable to launch game', msg, game)
     }
   }
 
@@ -649,8 +837,8 @@ export default function Home() {
         <div className="pointer-events-none absolute inset-0 z-0 bg-theme-app/45 backdrop-blur-[2px]" />
       ) : null}
 
-      <div className="relative z-10 flex items-center gap-4 w-full justify-between">
-        <div className="flex items-center">
+      <div className="relative z-10 grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4">
+        <div className="flex min-w-0 items-center justify-self-start">
           {logoImageSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoImageSrc} alt={shopName} className="max-h-16 w-auto max-w-[320px] object-contain" />
@@ -658,16 +846,32 @@ export default function Home() {
             <div className="text-5xl font-bold text-theme-primary">{shopName}</div>
           )}
         </div>
-        <div className="max-w-[560px] flex-1">
+        <div className="flex w-full max-w-[560px] items-center gap-2">
           <Input
-            className="h-[42px] rounded-[10px]"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            className="h-[42px] min-w-0 flex-1 rounded-[10px]"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commitSearch()
+              }
+            }}
             placeholder="Search"
+            aria-label="Search games"
           />
+          <Button
+            type="button"
+            size="icon"
+            className="h-[42px] w-[42px] shrink-0 rounded-[10px]"
+            aria-label="Apply search"
+            onClick={() => commitSearch()}
+          >
+            <Search className="h-4 w-4" />
+          </Button>
         </div>
 
-        <div className='flex items-center'>
+        <div className="flex items-center justify-self-end">
           <Button size='icon' className='!rounded-full bg-transparent text-theme-text' aria-label="Minimize" onClick={() => WindowMinimise()}>
             <Minus className="h-4 w-4" />
           </Button>
@@ -678,10 +882,10 @@ export default function Home() {
       </div>
 
       <div className={`relative z-10 flex min-h-0 flex-1 gap-4 ${quickIsStacked ? 'flex-col' : ''}`}>
-        {showQuickAccess && quickIsStackedTop ? (
+        {showQuickAccess && quickIsStackedTop && quickAccessGames.length > 0 ? (
           <div className="flex w-full justify-center">
             <aside className="flex flex-col items-center gap-2">
-              {/* <Badge className='!py-0.5 !text-theme-muted'>Quick Access</Badge> */}
+              {showQuickAccessTitle ? <Badge className='!py-0.5 !border-none'>Quick Access</Badge> : null}
               <div className='flex items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
                 {quickAccessGames.map((g) => (
                   <Button
@@ -704,10 +908,10 @@ export default function Home() {
           </div>
         ) : null}
 
-        {showQuickAccess && quickIsLeft ? (
+        {showQuickAccess && quickIsLeft && quickAccessGames.length > 0 ? (
           <div className={`order-[-1] flex ${quickSlotAlignClass}`}>
             <aside className="flex flex-col items-center gap-2">
-              <Badge className='!py-0.5 !border-none'>Quick Access</Badge>
+              {showQuickAccessTitle ? <Badge className='!py-0.5 !border-none'>Quick Access</Badge> : null}
               <div className='flex flex-col items-center gap-2.5 bg-theme-secondary/50 rounded-lg p-1 w-full'>
                 {quickAccessGames.map((g) => (
                   <Button
@@ -734,16 +938,16 @@ export default function Home() {
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
             {isCategoryTop(categoryPosition) ? (
               <div className={`mb-3.5 flex flex-wrap gap-2.5 ${tabsPosClass(categoryPosition)}`}>
-                {tabs.map((tab) => (
+                {tabItems.map((tab) => (
                   <Button
-                    key={tab}
+                    key={tab.key}
                     type="button"
-                    variant={tab === activeTab ? 'default' : 'secondary'}
+                    variant={tab.key === activeTab ? 'default' : 'secondary'}
                     size="sm"
-                    className={cn('', tab === activeTab ? '' : 'text-theme-muted')}
-                    onClick={() => setActiveTab(tab)}
+                    className={cn('', tab.key === activeTab ? '' : 'text-theme-muted')}
+                    onClick={() => setActiveTab(tab.key)}
                   >
-                    {tab}
+                    <CategoryTabLabel tab={tab} tabAlign="bar" />
                   </Button>
                 ))}
               </div>
@@ -752,16 +956,16 @@ export default function Home() {
             <div className="flex min-h-0 min-w-0 flex-1 gap-2.5">
               {isCategoryCenterLeft(categoryPosition) ? (
                 <div className="mb-0 flex flex-col flex-nowrap items-start justify-start gap-2.5">
-                  {tabs.map((tab) => (
+                  {tabItems.map((tab) => (
                     <Button
-                      key={tab}
+                      key={tab.key}
                       type="button"
-                      variant={tab === activeTab ? 'default' : 'secondary'}
+                      variant={tab.key === activeTab ? 'default' : 'secondary'}
                       size="sm"
-                      className={cn('w-full', tab === activeTab ? '' : 'text-theme-muted')}
-                      onClick={() => setActiveTab(tab)}
+                      className={cn('w-full', tab.key === activeTab ? '' : 'text-theme-muted')}
+                      onClick={() => setActiveTab(tab.key)}
                     >
-                      {tab}
+                      <CategoryTabLabel tab={tab} tabAlign="left" />
                     </Button>
                   ))}
                 </div>
@@ -790,16 +994,16 @@ export default function Home() {
 
               {isCategoryCenterRight(categoryPosition) ? (
                 <div className="mb-0 flex flex-col flex-nowrap items-end justify-start gap-2.5">
-                  {tabs.map((tab) => (
+                  {tabItems.map((tab) => (
                     <Button
-                      key={tab}
+                      key={tab.key}
                       type="button"
-                      variant={tab === activeTab ? 'default' : 'secondary'}
+                      variant={tab.key === activeTab ? 'default' : 'secondary'}
                       size="sm"
-                      className={cn('w-full', tab === activeTab ? '' : 'text-theme-muted')}
-                      onClick={() => setActiveTab(tab)}
+                      className={cn('w-full', tab.key === activeTab ? '' : 'text-theme-muted')}
+                      onClick={() => setActiveTab(tab.key)}
                     >
-                      {tab}
+                      <CategoryTabLabel tab={tab} tabAlign="right" />
                     </Button>
                   ))}
                 </div>
@@ -808,16 +1012,16 @@ export default function Home() {
 
             {isCategoryBottom(categoryPosition) ? (
               <div className={`mb-3.5 flex flex-wrap gap-2.5 ${tabsPosClass(categoryPosition)}`}>
-                {tabs.map((tab) => (
+                {tabItems.map((tab) => (
                   <Button
-                    key={tab}
+                    key={tab.key}
                     type="button"
-                    variant={tab === activeTab ? 'default' : 'secondary'}
+                    variant={tab.key === activeTab ? 'default' : 'secondary'}
                     size="sm"
-                    className={cn('', tab === activeTab ? '' : 'text-theme-muted')}
-                    onClick={() => setActiveTab(tab)}
+                    className={cn('', tab.key === activeTab ? '' : 'text-theme-muted')}
+                    onClick={() => setActiveTab(tab.key)}
                   >
-                    {tab}
+                    <CategoryTabLabel tab={tab} tabAlign="bar" />
                   </Button>
                 ))}
               </div>
@@ -825,10 +1029,10 @@ export default function Home() {
           </main>
         </div>
 
-        {showQuickAccess && quickIsRight ? (
+        {showQuickAccess && quickIsRight && quickAccessGames.length > 0 ? (
           <div className={`order-1 flex ${quickSlotAlignClass}`}>
             <aside className="flex flex-col items-center gap-2">
-              {/* <Badge className='!py-0.5'>Quick Access</Badge> */}
+              <Badge className='!py-0.5 !border-none'>Quick Access</Badge>
               <div className='flex flex-col items-center gap-2 bg-theme-secondary/50 rounded-lg p-1 w-full'>
                 {quickAccessGames.map((g) => (
                   <Button
@@ -851,10 +1055,10 @@ export default function Home() {
           </div>
         ) : null}
 
-        {showQuickAccess && quickIsStackedBottom ? (
+        {showQuickAccess && quickIsStackedBottom && quickAccessGames.length > 0 ? (
           <div className="flex w-full justify-center">
             <aside className="flex flex-col items-center gap-2">
-              {/* <Badge className='!py-0.5'>Quick Access</Badge> */}
+              {showQuickAccessTitle ? <Badge className='!py-0.5 !border-none'>Quick Access</Badge> : null}
               <div className='flex items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
                 {quickAccessGames.map((g) => (
                   <Button
@@ -878,19 +1082,65 @@ export default function Home() {
         ) : null}
       </div>
 
-      <footer className="relative z-10 flex py-3 items-center gap-[18px] rounded-md bg-theme-sidebar/70 px-3">
-        <span className="text-sm text-theme-primary font-bold">{computerName}</span>
+      {showFooter ? (
+        <footer className="relative z-10 flex py-3 items-center gap-[18px] rounded-md bg-theme-sidebar/70 px-3">
+          <span className="text-sm text-theme-primary font-bold">{computerName}</span>
 
-        <div className="flex-1 overflow-hidden whitespace-nowrap text-theme-secondary-text font-normal text-sm">
-          <span className="animate-[scrollText_10s_linear_infinite] inline-block pl-[100%]">
-            {settings.runningText?.trim() || 'Powered by EZJR'}
+          {/* {windowsStartupStatus ? (
+            <span className="shrink-0 text-xs text-theme-muted" title="HKCU\Software\Microsoft\Windows\CurrentVersion\Run\EZJRGameClient">
+              Startup: {windowsStartupStatus === 'on' ? 'On' : 'Off'}
+            </span>
+          ) : null} */}
+
+          <div className="flex-1 overflow-hidden whitespace-nowrap text-theme-secondary-text font-normal text-sm">
+            <span className="animate-[scrollText_20s_linear_infinite] inline-block pl-[100%]">
+              {settings.runningText?.trim() || 'Powered by EZJR'}
+            </span>
+          </div>
+
+          <span className="ml-auto text-theme-muted text-sm font-semibold">
+            {`${time} ${date}`}
           </span>
-        </div>
+        </footer>
+      ) : null}
 
-        <span className="ml-auto text-theme-muted text-sm font-semibold">
-          {`${time} ${date}`}
-        </span>
-      </footer>
+      <AlertDialog
+        open={launchDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setLaunchDialog(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex gap-4 sm:items-start">
+              {launchDialog?.iconSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={launchDialog.iconSrc}
+                  alt={launchDialog.gameName ?? ''}
+                  className="h-14 w-14 shrink-0 rounded-lg border border-theme-border bg-theme-sidebar object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-theme-border bg-theme-sidebar"
+                  aria-hidden
+                >
+                  <Gamepad2 className="h-7 w-7 text-theme-muted" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1 space-y-2 text-left">
+                <AlertDialogTitle>{launchDialog?.title ?? ''}</AlertDialogTitle>
+                <AlertDialogDescription className="whitespace-pre-wrap">
+                  {launchDialog?.message ?? ''}
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction type="button">OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   )

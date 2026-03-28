@@ -696,6 +696,16 @@ func (a *App) SaveSettingsJSON(payload string) error {
 	return os.WriteFile(path, []byte(payload), 0o644)
 }
 
+// SetLaunchOnWindowsStartup registers or removes game-client.exe (next to this exe) in HKCU\...\Run (Windows only).
+func (a *App) SetLaunchOnWindowsStartup(enabled bool) error {
+	return setWindowsStartupLaunch(enabled)
+}
+
+// GetWindowsStartupStatus returns "" on non-Windows; otherwise "on" or "off" according to the Run registry entry for game-client.exe.
+func (a *App) GetWindowsStartupStatus() string {
+	return getWindowsStartupStatus()
+}
+
 // LoadClientsJSON reads clients.json from the portable data directory, or returns "[]".
 func (a *App) LoadClientsJSON() (string, error) {
 	dataDir, err := a.portableDataDir()

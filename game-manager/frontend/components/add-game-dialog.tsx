@@ -172,7 +172,13 @@ export function AddGameDialog({
       setExePath(picked)
       try {
         const iconRel = await ExtractExecutableIcon(picked)
-        if (iconRel) setExeIconRelPath(iconRel)
+        if (iconRel) {
+          setExeIconRelPath(iconRel)
+          if (!iconSourcePath.trim()) {
+            const dataUrl = await GetCoverDataURL(iconRel)
+            if (dataUrl) setCustomIconDataUrl(dataUrl)
+          }
+        }
       } catch {
         /* ignore; still allow adding game without exe icon */
       }
@@ -274,8 +280,7 @@ export function AddGameDialog({
       }
     }
 
-    let iconRelPath: string | undefined =
-      mode === 'edit' && initialGame ? initialGame.exeIconRelPath : undefined
+    let iconRelPath: string | undefined
 
     if (iconSourcePath.trim() && hasWailsApp()) {
       try {
@@ -284,11 +289,16 @@ export function AddGameDialog({
       } catch {
         /* still save game without icon */
       }
+    } else if (exePath.trim() && hasWailsApp()) {
+      try {
+        const extracted = await ExtractExecutableIcon(exePath.trim())
+        if (extracted) iconRelPath = extracted
+      } catch {
+        /* still save game without icon */
+      }
     }
 
-    const iconRelToSave =
-      iconRelPath ||
-      (mode === 'edit' && initialGame?.exeIconRelPath ? initialGame.exeIconRelPath : '')
+    const iconRelToSave = iconRelPath?.trim() || undefined
 
     const game: Game = {
       id,

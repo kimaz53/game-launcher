@@ -1,70 +1,28 @@
 [
   {
     "id": 1,
-    "name": "Valorant",
-    "exePath": "C:\\Riot Games\\Riot Client\\RiotClientServices.exe",
-    "args": "--launch-product=valorant --launch-patchline=live",
-    "category": "Online Games",
+    "name": "Knives Out",
+    "exePath": "F:\\hyxd\\Engine\\Binaries\\Win64\\hyxd.exe",
+    "args": "",
+    "category": "",
     "group": "",
-    "tags": [
-      "Shooting Game",
-      "Action"
-    ],
+    "tags": [],
     "platform": "Local",
     "status": "Installed",
-    "coverRelPath": "covers/1.png",
-    "exeIconRelPath": "icons/53dc27f05bedcc1dcdb8f04f7b61c5a3.png",
+    "exeIconRelPath": "icons/250154c89ac440bdeb2af45ea0050cbc.png",
     "allowedClientIps": []
   },
   {
     "id": 2,
-    "name": "G",
-    "exePath": "",
+    "name": "Google",
+    "exePath": "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
     "args": "",
     "category": "",
     "group": "",
     "tags": [],
-    "platform": "",
-    "status": "Not Installed",
-    "exeIconRelPath": "icons/6a341ef5ca34e6b2080c7fa50476329a.png",
-    "allowedClientIps": []
-  },
-  {
-    "id": 3,
-    "name": "FAFAFA",
-    "exePath": "",
-    "args": "",
-    "category": "",
-    "group": "",
-    "tags": [],
-    "platform": "",
-    "status": "Not Installed",
-    "exeIconRelPath": "icons/b3401d6b93fe24f37faaa95003d82696.png",
-    "allowedClientIps": []
-  },
-  {
-    "id": 4,
-    "name": "AFAF",
-    "exePath": "",
-    "args": "",
-    "category": "",
-    "group": "",
-    "tags": [],
-    "platform": "",
-    "status": "Not Installed",
-    "exeIconRelPath": "icons/2b9f80e598d24ffa729f7472428e51e4.png",
-    "allowedClientIps": []
-  },
-  {
-    "id": 5,
-    "name": "HAHAHAHA",
-    "exePath": "",
-    "args": "",
-    "category": "",
-    "group": "",
-    "tags": [],
-    "platform": "",
-    "status": "Not Installed",
+    "platform": "Local",
+    "status": "Installed",
+    "exeIconRelPath": "icons/a0d82a34861c9c76eea0a1198e9f83f1.png",
     "allowedClientIps": []
   }
 ]

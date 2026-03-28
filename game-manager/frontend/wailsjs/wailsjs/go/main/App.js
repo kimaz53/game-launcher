@@ -14,6 +14,10 @@ export function GetDataDir() {
   return window['go']['main']['App']['GetDataDir']();
 }
 
+export function GetWindowsStartupStatus() {
+  return window['go']['main']['App']['GetWindowsStartupStatus']();
+}
+
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
@@ -92,4 +96,8 @@ export function SaveSettingsJSON(arg1) {
 
 export function SaveTagsJSON(arg1) {
   return window['go']['main']['App']['SaveTagsJSON'](arg1);
+}
+
+export function SetLaunchOnWindowsStartup(arg1) {
+  return window['go']['main']['App']['SetLaunchOnWindowsStartup'](arg1);
 }

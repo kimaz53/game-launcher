@@ -59,6 +59,11 @@ func (a *App) GetComputerName() string {
 	return strings.TrimSpace(host)
 }
 
+// GetWindowsStartupStatus returns "" on non-Windows; otherwise "on" or "off" for HKCU Run entry EZJRGameClient.
+func (a *App) GetWindowsStartupStatus() string {
+	return getWindowsStartupStatus()
+}
+
 func (a *App) managerDataDir() (string, error) {
 	// Prefer local data folder when running a packaged game-client build.
 	exePath, err := os.Executable()
@@ -179,6 +184,31 @@ func (a *App) ReadManagerImageDataURL(relPath string) string {
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
 }
 
+func (a *App) readManagerImageBytes(relPath string) []byte {
+	relPath = strings.TrimSpace(relPath)
+	if relPath == "" {
+		return nil
+	}
+	dataDir, err := a.managerDataDir()
+	if err != nil {
+		return nil
+	}
+	clean := filepath.Clean(filepath.FromSlash(relPath))
+	if strings.HasPrefix(clean, "..") {
+		return nil
+	}
+	full := filepath.Join(dataDir, clean)
+	resolved, err := filepath.Rel(dataDir, full)
+	if err != nil || strings.HasPrefix(resolved, "..") {
+		return nil
+	}
+	b, err := os.ReadFile(full)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
 func splitArgs(raw string) ([]string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -266,7 +296,7 @@ func (a *App) LaunchGame(exePath string, args string) error {
 	return nil
 }
 
-func (a *App) ShowNativeMessage(title string, message string) {
+func (a *App) showNativeMessageDialog(title, message, iconRelPath string) {
 	title = strings.TrimSpace(title)
 	message = strings.TrimSpace(message)
 	if title == "" {
@@ -275,9 +305,31 @@ func (a *App) ShowNativeMessage(title string, message string) {
 	if message == "" {
 		message = "Something went wrong."
 	}
-	_, _ = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+	var iconBytes []byte
+	if iconRelPath != "" {
+		iconBytes = a.readManagerImageBytes(iconRelPath)
+	}
+	// Windows: Wails uses MessageBoxW and ignores opts.Icon; use Task Dialog + HICON instead.
+	if len(iconBytes) > 0 && tryWindowsMessageWithIcon(0, title, title, message, iconBytes) {
+		return
+	}
+	opts := runtime.MessageDialogOptions{
 		Type:    runtime.InfoDialog,
 		Title:   title,
 		Message: message,
-	})
+	}
+	if len(iconBytes) > 0 {
+		opts.Icon = iconBytes
+	}
+	_, _ = runtime.MessageDialog(a.ctx, opts)
+}
+
+// ShowNativeMessage shows a system dialog (two args; compatible with older embedded frontends).
+func (a *App) ShowNativeMessage(title string, message string) {
+	a.showNativeMessageDialog(title, message, "")
+}
+
+// ShowNativeMessageWithIcon is like ShowNativeMessage but uses a manager-relative image path for the dialog icon when present.
+func (a *App) ShowNativeMessageWithIcon(title string, message string, iconRelPath string) {
+	a.showNativeMessageDialog(title, message, strings.TrimSpace(iconRelPath))
 }
