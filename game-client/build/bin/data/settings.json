@@ -1,12 +1,12 @@
 {
   "themeFamilyId": "vs-blue",
-  "themeAppearance": "dark",
+  "themeAppearance": "light",
   "clients": [],
   "shopName": "EZJR Pisonet",
   "gameOrder": "A-Z",
   "whenLaunchingGame": "normal",
   "gameIconSize": "large",
-  "categoryPosition": "bottom-right",
+  "categoryPosition": "left-upper",
   "quickAccessPosition": "top-center",
   "tagsPosition": "top-left",
   "showTags": true,
@@ -16,5 +16,6 @@
   "showFooter": true,
   "launchOnWindowsStartup": false,
   "showCategoryIcons": true,
-  "backgroundImage": "settings/background.jpg"
+  "backgroundImage": "settings/background.jpg",
+  "logoImage": "settings/logo.png"
 }

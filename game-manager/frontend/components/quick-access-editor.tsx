@@ -288,8 +288,8 @@ export function QuickAccessEditor({ embedded, disabled }: QuickAccessEditorProps
   const handleDeleteQuickAccess = async (gameId: number) => {
     const game = games.find((g) => g.id === gameId)
     const label = game?.name ?? `#${gameId}`
-    const ok = window.confirm(`Remove "${label}" from Quick Access?`)
-    if (!ok) return
+    // const ok = window.confirm(`Remove "${label}" from Quick Access?`)
+    // if (!ok) return
     const next = quickAccessIds.filter((id) => id !== gameId)
     await persist(next)
   }

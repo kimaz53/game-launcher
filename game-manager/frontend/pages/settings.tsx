@@ -477,7 +477,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between gap-3">
                 <label className="text-sm text-theme-muted">Running Text</label>
                 <div className="flex items-center space-x-1.5">
-                  <label className="text-sm text-theme-muted">Show footer</label>
+                  <label className="text-sm text-theme-muted">Show Footer</label>
                   <Switch checked={showFooter} onCheckedChange={setShowFooter} />
                 </div>
               </div>

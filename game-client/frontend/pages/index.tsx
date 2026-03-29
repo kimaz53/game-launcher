@@ -241,15 +241,32 @@ function parseManagerClients(json: string): ManagerClient[] {
   }
 }
 
-/** Game is shown only if allowedClientIps is empty, or this PC matches a registered client (same IP + name as in clients.json). */
+function isRegisteredClient(
+  identity: { hostname: string; ipv4: string[] } | null,
+  clients: ManagerClient[],
+): boolean {
+  if (!identity || !identity.hostname.trim()) return false
+  const host = normalizeHostLabel(identity.hostname)
+  const localIPs = new Set(identity.ipv4.map(normalizeIp))
+  for (const c of clients) {
+    const ip = normalizeIp(c.ip)
+    if (!ip || !localIPs.has(ip)) continue
+    if (normalizeHostLabel(c.name) === host) return true
+  }
+  return false
+}
+
+/** Games are hidden unless this PC (IP + hostname) exists in `clients.json`. */
 function isGameVisibleToClient(
   game: ManagerGame,
   identity: { hostname: string; ipv4: string[] } | null,
   clients: ManagerClient[],
 ): boolean {
   const allowed = game.allowedClientIps
-  if (!allowed || allowed.length === 0) return true
-  if (!identity || !identity.hostname.trim()) return false
+  // Even "all clients" games require the current machine to be registered.
+  if (!allowed || allowed.length === 0) return isRegisteredClient(identity, clients)
+  if (!isRegisteredClient(identity, clients)) return false
+  if (!identity) return false
 
   const host = normalizeHostLabel(identity.hostname)
   const localIPs = new Set(identity.ipv4.map(normalizeIp))
@@ -617,6 +634,17 @@ function horizontalStripJustifyClass(sub: string): string {
   }
 }
 
+function verticalSlotSelfAlignClass(sub: string): string {
+  switch (sub) {
+    case 'center':
+      return 'self-center'
+    case 'lower':
+      return 'self-end'
+    default:
+      return 'self-start'
+  }
+}
+
 function categoryTabRowClass(tabAlign: 'bar' | 'left' | 'right'): string {
   switch (tabAlign) {
     case 'left':
@@ -703,6 +731,7 @@ function LauncherCategoryTabs({
   showIcons,
   justifyClass,
   barAlign = 'left',
+  columnMaxHeightPx,
 }: {
   tabItems: CategoryTabItem[]
   activeTab: string
@@ -714,6 +743,8 @@ function LauncherCategoryTabs({
   justifyClass?: string
   /** Horizontal bar only: tab strip alignment; `right` uses right-to-left order. */
   barAlign?: 'left' | 'center' | 'right'
+  /** Column rail only: max height for scrollable panel (px). */
+  columnMaxHeightPx?: number
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -812,6 +843,7 @@ function LauncherCategoryTabs({
             columnListClass,
             'max-h-[min(52vh,28rem)] overflow-y-auto overflow-x-hidden [scrollbar-width:thin]',
           )}
+          style={columnMaxHeightPx ? { maxHeight: `${columnMaxHeightPx}px` } : undefined}
           role="tablist"
           aria-label="Game categories"
         >
@@ -825,7 +857,7 @@ function LauncherCategoryTabs({
   const align = barAlign
 
   return (
-    <div className="mb-3 flex min-w-0 flex-nowrap items-center justify-start gap-1">
+    <div className="flex min-w-0 flex-nowrap items-center justify-start gap-1">
       {showArrows ? (
         <button
           type="button"
@@ -833,7 +865,7 @@ function LauncherCategoryTabs({
           disabled={!canScrollLeft}
           onClick={() => scrollByDir(-200)}
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-theme-card/50 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-theme-text shadow-sm backdrop-blur-md transition-opacity',
             !canScrollLeft && 'pointer-events-none opacity-30',
           )}
         >
@@ -845,7 +877,7 @@ function LauncherCategoryTabs({
         ref={scrollRef}
         className={cn(
           panel,
-          'min-w-0 flex-1 overflow-x-auto overflow-y-hidden scroll-smooth [scrollbar-width:thin]',
+          'min-w-0 flex-1 overflow-x-auto overflow-y-hidden scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
         )}
         role="tablist"
         aria-label="Game categories"
@@ -998,7 +1030,7 @@ function GameArtwork({
 
   const cls =
     iconSize === 'small'
-      ? 'aspect-square size-[3.125rem] shrink-0 !bg-transparent !border-none'
+      ? 'aspect-square size-10 shrink-0 !bg-transparent !border-none'
       : iconSize === 'large'
         ? 'h-[220px] w-[160px]'
         : 'h-[180px] w-[132px]'
@@ -1023,6 +1055,7 @@ function GameArtwork({
             src={src}
             alt={game.name}
             className={usesCoverArt ? coverImgClass : iconImgClass}
+            draggable={false}
           />
         </div>
         {showTags && game.tags?.length ? (
@@ -1078,6 +1111,10 @@ export default function Home() {
   } | null>(null)
   const [windowsStartupStatus, setWindowsStartupStatus] = useState<'on' | 'off' | ''>('')
   const [headerLinks, setHeaderLinks] = useState<ManagerLink[]>([])
+  const libraryGridRef = useRef<HTMLDivElement | null>(null)
+  const [libraryGridHeightPx, setLibraryGridHeightPx] = useState<number | null>(null)
+  const [libraryGridWidthPx, setLibraryGridWidthPx] = useState<number | null>(null)
+  const [libraryGridScrollTop, setLibraryGridScrollTop] = useState(0)
 
   useEffect(() => {
     void GetWindowsStartupStatus()
@@ -1085,6 +1122,20 @@ export default function Home() {
         if (s === 'on' || s === 'off') setWindowsStartupStatus(s)
       })
       .catch(() => { })
+  }, [])
+
+  useLayoutEffect(() => {
+    const el = libraryGridRef.current
+    if (!el) return
+    const apply = () => {
+      const r = el.getBoundingClientRect()
+      setLibraryGridHeightPx(Math.max(0, Math.round(r.height)))
+      setLibraryGridWidthPx(Math.max(0, Math.round(r.width)))
+    }
+    apply()
+    const ro = new ResizeObserver(() => apply())
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   /** Clear selection on click outside tiles (`click` avoids scrollbar pointerdown quirks). */
@@ -1234,7 +1285,7 @@ export default function Home() {
   const quickSlotAlignClass =
     quickIsStackedTop || quickIsStackedBottom
       ? horizontalStripJustifyClass(quickLayout.sub)
-      : categoryRailMainAlignClass(quickLayout.sub)
+      : verticalSlotSelfAlignClass(quickLayout.sub)
 
   const visibleGames = useMemo(
     () => games.filter((g) => isGameVisibleToClient(g, clientIdentity, managerClients)),
@@ -1390,9 +1441,9 @@ export default function Home() {
         <div className="flex min-w-0 flex-1 items-center justify-start md:flex-none">
           {logoImageSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoImageSrc} alt={shopName} className="max-h-14 w-auto max-w-[min(280px,40vw)] object-contain drop-shadow-md md:max-h-16" />
+            <img draggable={false} src={logoImageSrc} alt={shopName} className="max-h-14 w-auto max-w-[min(280px,40vw)] object-contain drop-shadow-md md:max-h-16" />
           ) : (
-            <div className="truncate bg-gradient-to-r from-theme-text to-theme-muted bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">
+            <div className="truncate bg-gradient-to-r from-theme-text to-theme-muted bg-clip-text text-2xl font-bold tracking-[0.2em] text-transparent md:text-3xl">
               {shopName}
             </div>
           )}
@@ -1451,7 +1502,7 @@ export default function Home() {
 
       <div
         className={cn(
-          'relative z-10 mx-3 mb-2 mt-2 flex min-h-0 flex-1 gap-3 md:mx-4 md:gap-3',
+          'relative z-10 mx-3 mb-2 mt-2 flex min-h-0 flex-1 md:mx-4 gap-2',
           quickIsStacked && 'flex-col',
         )}
       >
@@ -1461,7 +1512,7 @@ export default function Home() {
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex flex-wrap items-center gap-2', quickDockClass)}>
+              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:thin]', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1489,7 +1540,7 @@ export default function Home() {
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex w-full flex-col items-center gap-2.5', quickDockClass)}>
+              <div className={cn('flex w-full flex-col max-h-full overflow-y-auto items-center gap-2.5 [scrollbar-width:thin]', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1511,8 +1562,8 @@ export default function Home() {
           </div>
         ) : null}
 
-        <div className="flex min-w-0 flex-1">
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [scrollbar-width:thin]">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
             {categoryLayout.edge === 'top' ? (
               <LauncherCategoryTabs
                 tabItems={tabItems}
@@ -1540,55 +1591,99 @@ export default function Home() {
                     direction="column"
                     tabAlign="left"
                     showIcons={showCategoryIcons}
+                    columnMaxHeightPx={libraryGridHeightPx ?? undefined}
                   />
                 </div>
               ) : null}
 
               <div
+                ref={libraryGridRef}
+                onScroll={(e) => setLibraryGridScrollTop((e.currentTarget as HTMLDivElement).scrollTop)}
                 className={cn(
-                  'grid min-h-0 min-w-0 flex-1 auto-rows-min gap-3 overflow-auto p-4',
+                  'relative min-h-0 min-w-0 flex-1 overflow-y-auto p-4 [scrollbar-width:thin] overscroll-contain',
                   libraryShellClass,
-                  iconSize == 'small' && 'grid-cols-[repeat(auto-fill,minmax(100px,1fr))]',
-                  iconSize == 'medium' && 'grid-cols-[repeat(auto-fill,minmax(140px,1fr))]',
-                  iconSize == 'large' && 'grid-cols-[repeat(auto-fill,minmax(160px,1fr))]',
                 )}
               >
-                {filteredGames.map((game) => {
-                  const selected = selectedGameId === game.id
-                  return (
-                    <Button
-                      key={game.id}
-                      type="button"
-                      variant="ghost"
-                      data-game-tile
-                      className={cn(
-                        'group relative flex h-auto min-h-0 w-full min-w-0 max-w-[13rem] flex-col items-center justify-start gap-2 overflow-hidden rounded-2xl border p-3 !m-0 justify-self-center',
-                        'border border-white/5 bg-theme-card/20 text-inherit shadow-sm ring-1 ring-black/20 transition-all duration-200',
-                        'hover:-translate-y-0.5 hover:border-theme-primary/25 hover:bg-theme-card/45 hover:shadow-lg hover:shadow-black/30',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-app',
-                        selected &&
-                          'border-theme-primary/40 bg-theme-primary/15 shadow-lg shadow-black/25 ring-2 ring-theme-primary/35',
-                      )}
-                      onClick={() => setSelectedGameId(game.id)}
-                      onDoubleClick={() => void handleLaunchGame(game)}
-                    >
-                      <GameArtwork
-                        game={game}
-                        iconSize={iconSize}
-                        tagsPosition={tagsPosition}
-                        showTags={showTags}
-                      />
-                      <span
-                        className={cn(
-                          'line-clamp-2 w-full px-0.5 text-center text-xs font-normal leading-snug',
-                          selected ? 'text-theme-primary' : 'text-theme-text',
-                        )}
-                      >
-                        {game.name}
-                      </span>
-                    </Button>
+                {(() => {
+                  const w = libraryGridWidthPx ?? 0
+                  const h = libraryGridHeightPx ?? 0
+                  const gapPx = 12
+                  const minTileWidthPx =
+                    iconSize === 'small' ? 100 : iconSize === 'large' ? 160 : 140
+                  const rowHeightPx =
+                    iconSize === 'small' ? 112 : iconSize === 'large' ? 292 : 252
+
+                  const usableWidth = Math.max(0, w - 32) // p-4 left+right
+                  const cols = Math.max(1, Math.floor((usableWidth + gapPx) / (minTileWidthPx + gapPx)))
+                  const tileWidth = Math.max(minTileWidthPx, Math.floor((usableWidth - gapPx * (cols - 1)) / cols))
+
+                  const rowCount = Math.ceil(filteredGames.length / cols)
+                  const totalHeight = rowCount * rowHeightPx
+
+                  const overscanRows = 3
+                  const startRow = Math.max(0, Math.floor(libraryGridScrollTop / rowHeightPx) - overscanRows)
+                  const endRow = Math.min(
+                    rowCount,
+                    Math.ceil((libraryGridScrollTop + h) / rowHeightPx) + overscanRows,
                   )
-                })}
+                  const startIndex = startRow * cols
+                  const endIndex = Math.min(filteredGames.length, endRow * cols)
+
+                  return (
+                    <div className="relative w-full" style={{ height: totalHeight }}>
+                      {filteredGames.slice(startIndex, endIndex).map((game, i) => {
+                        const idx = startIndex + i
+                        const row = Math.floor(idx / cols)
+                        const col = idx % cols
+                        const selected = selectedGameId === game.id
+                        return (
+                          <div
+                            key={game.id}
+                            style={{
+                              position: 'absolute',
+                              top: row * rowHeightPx,
+                              left: col * (tileWidth + gapPx),
+                              width: tileWidth,
+                              height: rowHeightPx,
+                              paddingBottom: gapPx,
+                            }}
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              data-game-tile
+                              className={cn(
+                                'group relative flex h-full min-h-0 w-full min-w-0 flex-col items-center justify-start gap-2 overflow-hidden rounded-2xl border p-3 !m-0',
+                                'border border-white/5 bg-theme-card/20 text-inherit shadow-sm ring-1 ring-black/20 transition-all duration-200',
+                                'hover:-translate-y-0.5 hover:border-theme-primary/25 hover:bg-theme-card/45 hover:shadow-lg hover:shadow-black/30',
+                                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-app',
+                                selected &&
+                                  'border-theme-primary/40 bg-theme-primary/15 shadow-lg shadow-black/25 ring-2 ring-theme-primary/35',
+                              )}
+                              onClick={() => setSelectedGameId(game.id)}
+                              onDoubleClick={() => void handleLaunchGame(game)}
+                            >
+                              <GameArtwork
+                                game={game}
+                                iconSize={iconSize}
+                                tagsPosition={tagsPosition}
+                                showTags={showTags}
+                              />
+                              <span
+                                className={cn(
+                                  'line-clamp-2 w-full px-0.5 text-center text-xs font-normal leading-snug',
+                                  selected ? 'text-theme-primary' : 'text-theme-text',
+                                )}
+                              >
+                                {game.name}
+                              </span>
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
               </div>
 
               {categoryLayout.edge === 'right' ? (
@@ -1605,6 +1700,7 @@ export default function Home() {
                     direction="column"
                     tabAlign="right"
                     showIcons={showCategoryIcons}
+                    columnMaxHeightPx={libraryGridHeightPx ?? undefined}
                   />
                 </div>
               ) : null}
@@ -1630,7 +1726,7 @@ export default function Home() {
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex w-full flex-col items-center gap-2', quickDockClass)}>
+              <div className={cn('flex w-full flex-col max-h-full overflow-y-auto items-center gap-2.5 [scrollbar-width:thin]', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1658,7 +1754,7 @@ export default function Home() {
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex flex-wrap items-center gap-2', quickDockClass)}>
+              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:thin]', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
