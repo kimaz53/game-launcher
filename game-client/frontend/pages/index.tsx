@@ -1507,12 +1507,12 @@ export default function Home() {
         )}
       >
         {showQuickAccess && quickIsStackedTop && quickAccessGames.length > 0 ? (
-          <div className={cn('flex w-full', quickSlotAlignClass)}>
-            <aside className="flex flex-col items-center gap-2">
+          <div className={cn('flex w-full px-5', quickSlotAlignClass, quickDockClass)}>
+            <aside className="flex items-center gap-2">
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:thin]', quickDockClass)}>
+              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1535,12 +1535,19 @@ export default function Home() {
         ) : null}
 
         {showQuickAccess && quickIsLeft && quickAccessGames.length > 0 ? (
-          <div className={cn('order-[-1] flex', quickSlotAlignClass)}>
-            <aside className="flex flex-col items-center gap-2">
+          <div className={cn('order-[-1] flex min-h-0 self-stretch flex-col', quickSlotAlignClass, quickDockClass)}>
+            <aside className="flex min-h-0 flex-1 flex-col items-center gap-2">
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex w-full flex-col max-h-full overflow-y-auto items-center gap-2.5 [scrollbar-width:thin]', quickDockClass)}>
+              <div
+                className={cn('flex w-full min-h-0 flex-col overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
+                style={
+                  libraryGridHeightPx != null && libraryGridHeightPx > 0
+                    ? { height: libraryGridHeightPx, maxHeight: libraryGridHeightPx }
+                    : undefined
+                }
+              >
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1562,7 +1569,7 @@ export default function Home() {
           </div>
         ) : null}
 
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [scrollbar-width:thin]">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [scrollbar-width:thin]">
           <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
             {categoryLayout.edge === 'top' ? (
               <LauncherCategoryTabs
@@ -1609,9 +1616,9 @@ export default function Home() {
                   const h = libraryGridHeightPx ?? 0
                   const gapPx = 12
                   const minTileWidthPx =
-                    iconSize === 'small' ? 100 : iconSize === 'large' ? 160 : 140
+                    iconSize === 'small' ? 90 : iconSize === 'large' ? 149 : 130
                   const rowHeightPx =
-                    iconSize === 'small' ? 112 : iconSize === 'large' ? 292 : 252
+                    iconSize === 'small' ? 95 : iconSize === 'large' ? 275 : 235
 
                   const usableWidth = Math.max(0, w - 32) // p-4 left+right
                   const cols = Math.max(1, Math.floor((usableWidth + gapPx) / (minTileWidthPx + gapPx)))
@@ -1653,12 +1660,14 @@ export default function Home() {
                               variant="ghost"
                               data-game-tile
                               className={cn(
-                                'group relative flex h-full min-h-0 w-full min-w-0 flex-col items-center justify-start gap-2 overflow-hidden rounded-2xl border p-3 !m-0',
+                                'group relative flex h-auto w-full min-w-0 flex-col items-center gap-2 overflow-hidden border',
                                 'border border-white/5 bg-theme-card/20 text-inherit shadow-sm ring-1 ring-black/20 transition-all duration-200',
                                 'hover:-translate-y-0.5 hover:border-theme-primary/25 hover:bg-theme-card/45 hover:shadow-lg hover:shadow-black/30',
                                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-app',
                                 selected &&
-                                  'border-theme-primary/40 bg-theme-primary/15 shadow-lg shadow-black/25 ring-2 ring-theme-primary/35',
+                                'border-theme-primary/40 bg-theme-primary/15 shadow-lg shadow-black/25 ring-2 ring-theme-primary/35',
+                                '!rounded-xl px-0 !pb-2.5 !pt-0',
+                                iconSize == 'small' && '!pt-2'
                               )}
                               onClick={() => setSelectedGameId(game.id)}
                               onDoubleClick={() => void handleLaunchGame(game)}
@@ -1721,12 +1730,19 @@ export default function Home() {
         </div>
 
         {showQuickAccess && quickIsRight && quickAccessGames.length > 0 ? (
-          <div className={cn('order-1 flex', quickSlotAlignClass)}>
-            <aside className="flex flex-col items-center gap-2">
+          <div className={cn('order-1 flex min-h-0 self-stretch flex-col', quickSlotAlignClass, quickDockClass)}>
+            <aside className="flex min-h-0 flex-1 flex-col items-center gap-2">
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex w-full flex-col max-h-full overflow-y-auto items-center gap-2.5 [scrollbar-width:thin]', quickDockClass)}>
+              <div
+                className={cn('flex w-full min-h-0 flex-col overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
+                style={
+                  libraryGridHeightPx != null && libraryGridHeightPx > 0
+                    ? { height: libraryGridHeightPx, maxHeight: libraryGridHeightPx }
+                    : undefined
+                }
+              >
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1749,12 +1765,12 @@ export default function Home() {
         ) : null}
 
         {showQuickAccess && quickIsStackedBottom && quickAccessGames.length > 0 ? (
-          <div className={cn('flex w-full', quickSlotAlignClass)}>
-            <aside className="flex flex-col items-center gap-2">
+          <div className={cn('flex w-full px-5', quickSlotAlignClass, quickDockClass)}>
+            <aside className="flex items-center gap-2">
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:thin]', quickDockClass)}>
+              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}

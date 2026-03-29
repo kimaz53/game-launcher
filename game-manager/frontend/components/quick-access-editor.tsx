@@ -131,11 +131,13 @@ function AddQuickAccessDialog({ open, onOpenChange, games, quickAccessIds, onAdd
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return games
-    return games.filter((g) => {
-      const hay = `${g.name} ${g.category} ${g.group} ${g.tags.join(' ')}`.toLowerCase()
-      return hay.includes(q)
-    })
+    const base = !q
+      ? games
+      : games.filter((g) => {
+          const hay = `${g.name} ${g.category} ${g.group} ${g.tags.join(' ')}`.toLowerCase()
+          return hay.includes(q)
+        })
+    return [...base].sort((a, b) => b.id - a.id)
   }, [games, query])
 
   return (

@@ -1,6 +1,7 @@
 import Head from 'next/head'
 import { useEffect, useMemo, useState } from 'react'
 import { AddGameDialog } from '@/components/add-game-dialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -49,6 +50,16 @@ async function getDataDirCached(): Promise<string> {
       .catch(() => '')
   }
   return cachedDataDirPromise
+}
+
+const metaPillClass =
+  'inline-flex max-w-full items-center gap-1 rounded-md border border-theme-border bg-theme-card px-2 py-1 text-xs text-theme-text'
+
+function parseCategoryParts(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
 
 function relPathToAbsolute(dataDir: string, relPath: string): string {
@@ -396,7 +407,9 @@ export default function GamesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedGames.map((game) => (
+              {sortedGames.map((game) => {
+                const categoryParts = parseCategoryParts(game.category)
+                return (
                 <TableRow key={game.id} className="hover:bg-theme-card">
                   <TableCell>
                     <Checkbox
@@ -409,20 +422,46 @@ export default function GamesPage() {
                     <ExecutableIcon relPath={game.exeIconRelPath} alt={game.name} />
                   </TableCell>
                   <TableCell className="font-medium text-theme-text">{game.name}</TableCell>
-                  <TableCell className="text-theme-text">{game.category}</TableCell>
+                  <TableCell className="text-theme-text">
+                    {categoryParts.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {categoryParts.map((c) => (
+                          <span key={c} className={metaPillClass}>
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-theme-muted">—</span>
+                    )}
+                  </TableCell>
                   {/* <TableCell className="text-theme-text">{game.group}</TableCell> */}
-                  <TableCell className="text-theme-text">{game.tags.join(', ')}</TableCell>
+                  <TableCell className="text-theme-text">
+                    {game.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {game.tags.map((t) => (
+                          <span key={t} className={metaPillClass}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-theme-muted">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-theme-text">
                     {game.allowedClientIps.length === 0 ? (
-                      <span className="text-theme-muted">All clients</span>
+                      <span className={cn(metaPillClass, 'text-theme-muted')}>All clients</span>
                     ) : game.allowedClientIps.length <= 2 ? (
-                      game.allowedClientIps.map((ip) => (
-                        <div key={ip} className="truncate">
-                          <span>{clientLabel(ip)}</span>
-                          <span className="ml-1 text-xs text-theme-muted">({ip})</span>
-                          <span className="text-xs uppercase text-theme-primary">&nbsp;{clientType(ip)}</span>
-                        </div>
-                      ))
+                      <div className="flex flex-col gap-1.5">
+                        {game.allowedClientIps.map((ip) => (
+                          <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
+                            <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
+                            <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
+                            <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <Collapsible
                         open={!!allowedClientsExpanded[game.id]}
@@ -433,20 +472,20 @@ export default function GamesPage() {
                           }))
                         }
                       >
-                        <div className="space-y-1">
+                        <div className="flex flex-col gap-1.5">
                           {game.allowedClientIps.slice(0, 2).map((ip) => (
-                            <div key={ip} className="truncate">
-                              <span>{clientLabel(ip)}</span>
-                              <span className="ml-1 text-xs text-theme-muted font-mono">({ip})</span>
-                              <span className="text-xs uppercase text-theme-primary">&nbsp;{clientType(ip)}</span>
+                            <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
+                              <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
+                              <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
+                              <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
                             </div>
                           ))}
-                          <CollapsibleContent className="space-y-1">
+                          <CollapsibleContent className="flex flex-col gap-1.5">
                             {game.allowedClientIps.slice(2).map((ip) => (
-                              <div key={ip} className="truncate">
-                                <span>{clientLabel(ip)}</span>
-                                <span className="ml-1 text-xs text-theme-muted font-mono">({ip})</span>
-                                <span className="text-xs uppercase text-theme-primary">&nbsp;{clientType(ip)}</span>
+                              <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
+                                <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
+                                <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
+                                <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
                               </div>
                             ))}
                           </CollapsibleContent>
@@ -454,9 +493,9 @@ export default function GamesPage() {
                             <Button
                               type="button"
                               variant="ghost"
-                              className="h-auto px-0 py-0 text-xs text-theme-muted hover:bg-transparent hover:text-theme-text"
+                              className="h-auto justify-start px-0 py-0 text-xs text-theme-muted hover:bg-transparent hover:text-theme-text"
                             >
-                              <ChevronDown className={cn("h-3.5 w-3.5", allowedClientsExpanded[game.id] && "rotate-180")} />
+                              <ChevronDown className={cn('h-3.5 w-3.5', allowedClientsExpanded[game.id] && 'rotate-180')} />
                               {allowedClientsExpanded[game.id] ? 'Showing all' : 'Show all'} ({game.allowedClientIps.length})
                             </Button>
                           </CollapsibleTrigger>
@@ -465,7 +504,19 @@ export default function GamesPage() {
                     )}
                   </TableCell>
                   {/* <TableCell className="text-theme-text">{game.platform}</TableCell> */}
-                  <TableCell className="text-right text-theme-text">{game.status}</TableCell>
+                  <TableCell className="text-right text-theme-text">
+                    <div className="flex justify-end">
+                      <Badge
+                        className={cn('shrink-0',
+                          game.status === 'Installed'
+                            ? 'border-theme-success/45 bg-theme-success/15 text-theme-success'
+                            : 'border-theme-warning/45 bg-theme-warning/15 text-theme-warning',
+                        )}
+                      >
+                        {game.status}
+                      </Badge>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="inline-flex items-center gap-2">
                       <Button
@@ -489,7 +540,8 @@ export default function GamesPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </div>
@@ -509,11 +561,11 @@ export default function GamesPage() {
             <AlertDialogDescription className="whitespace-pre-wrap">
               {deleteDialogIds && deleteDialogIds.length === 1
                 ? (() => {
-                    const g = games.find((x) => x.id === deleteDialogIds[0])
-                    return g
-                      ? `"${g.name}" will be removed from the library. This cannot be undone.`
-                      : 'This game will be removed. This cannot be undone.'
-                  })()
+                  const g = games.find((x) => x.id === deleteDialogIds[0])
+                  return g
+                    ? `"${g.name}" will be removed from the library. This cannot be undone.`
+                    : 'This game will be removed. This cannot be undone.'
+                })()
                 : deleteDialogIds
                   ? `${deleteDialogIds.length} games will be removed from the library. This cannot be undone.`
                   : ''}
