@@ -34,6 +34,10 @@ export function ImportGameIcon(arg1) {
   return window['go']['main']['App']['ImportGameIcon'](arg1);
 }
 
+export function ImportLinkIcon(arg1, arg2) {
+  return window['go']['main']['App']['ImportLinkIcon'](arg1, arg2);
+}
+
 export function ImportSettingsImage(arg1, arg2) {
   return window['go']['main']['App']['ImportSettingsImage'](arg1, arg2);
 }
@@ -48,6 +52,10 @@ export function LoadClientsJSON() {
 
 export function LoadGamesJSON() {
   return window['go']['main']['App']['LoadGamesJSON']();
+}
+
+export function LoadLinksJSON() {
+  return window['go']['main']['App']['LoadLinksJSON']();
 }
 
 export function LoadQuickAccessJSON() {
@@ -84,6 +92,10 @@ export function SaveClientsJSON(arg1) {
 
 export function SaveGamesJSON(arg1) {
   return window['go']['main']['App']['SaveGamesJSON'](arg1);
+}
+
+export function SaveLinksJSON(arg1) {
+  return window['go']['main']['App']['SaveLinksJSON'](arg1);
 }
 
 export function SaveQuickAccessJSON(arg1) {

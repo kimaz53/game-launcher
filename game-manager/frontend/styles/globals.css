@@ -31,6 +31,9 @@ body {
   overflow: hidden;
   background-color: var(--color-app-background);
   color: var(--color-text);
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {

@@ -3,6 +3,16 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { AddTagDialog } from '@/components/add-tag-dialog'
 import { loadGames, saveGames } from '@/lib/games-storage'
 import { loadTags, saveTags } from '@/lib/tags-storage'
@@ -16,7 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowUpDown, Pencil, X, Trash2, Plus, Search, SaveIcon } from 'lucide-react'
+import { Pencil, Trash2, Plus, Search, X } from 'lucide-react'
 
 function uniq(values: string[]): string[] {
   return Array.from(new Set(values.map((v) => v.trim()).filter(Boolean)))
@@ -28,6 +38,8 @@ export default function TagsPage() {
   const [addTagOpen, setAddTagOpen] = useState(false)
   const [editTag, setEditTag] = useState<string | null>(null)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [deleteDialogTags, setDeleteDialogTags] = useState<string[] | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -43,11 +55,21 @@ export default function TagsPage() {
     return [...tags].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
   }, [tags])
 
-  const allRowsSelected = sortedTags.length > 0 && selectedTags.length === sortedTags.length
+  const filteredTags = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return sortedTags
+    return sortedTags.filter((t) => t.toLowerCase().includes(q))
+  }, [sortedTags, searchQuery])
+
+  const allRowsSelected =
+    filteredTags.length > 0 && filteredTags.every((t) => selectedTags.includes(t))
 
   const setSelectAll = (checked: boolean) => {
-    if (checked) setSelectedTags(sortedTags)
-    else setSelectedTags([])
+    if (checked) {
+      setSelectedTags((prev) => Array.from(new Set([...prev, ...filteredTags])))
+    } else {
+      setSelectedTags((prev) => prev.filter((t) => !filteredTags.includes(t)))
+    }
   }
 
   const setTagSelected = (tag: string, checked: boolean) => {
@@ -66,11 +88,13 @@ export default function TagsPage() {
     await saveGames(updated)
   }
 
-  const removeTagFromGames = async (value: string) => {
+  const removeTagsFromGames = async (values: string[]) => {
+    if (values.length === 0) return
+    const toRemove = new Set(values)
     const games = await loadGames()
     const updated = games.map((g) => ({
       ...g,
-      tags: g.tags.filter((t) => t !== value),
+      tags: g.tags.filter((t) => !toRemove.has(t)),
     }))
     await saveGames(updated)
   }
@@ -116,15 +140,26 @@ export default function TagsPage() {
     await saveTags(nextTags)
   }
 
-  const handleDelete = async (value: string) => {
-    const ok = window.confirm(`Delete tag "${value}" from list and remove it from games?`)
-    if (!ok) return
-
-    const nextTags = tags.filter((t) => t !== value)
-    setTags(nextTags)
-    await removeTagFromGames(value)
-    await saveTags(nextTags)
+  const openDeleteDialog = (toDelete: string[]) => {
+    if (toDelete.length === 0) return
+    setDeleteDialogTags(toDelete)
   }
+
+  const confirmDeleteTags = async () => {
+    if (!deleteDialogTags || deleteDialogTags.length === 0) return
+    const toRemove = new Set(deleteDialogTags)
+    const nextTags = tags.filter((t) => !toRemove.has(t))
+    setTags(nextTags)
+    setSelectedTags((prev) => prev.filter((t) => !toRemove.has(t)))
+    await removeTagsFromGames(deleteDialogTags)
+    await saveTags(nextTags)
+    setDeleteDialogTags(null)
+  }
+
+  const selectedDeletableTags = useMemo(
+    () => selectedTags.filter((t) => tags.includes(t)),
+    [tags, selectedTags]
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -134,14 +169,35 @@ export default function TagsPage() {
       <div className="wails-no-drag ml-auto flex w-full items-center gap-2 mb-4">
         <div className="flex w-[360px] items-center gap-2">
           <Input
-            placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tags"
             className="border-theme-border bg-theme-card text-theme-text placeholder:text-theme-muted"
+            aria-label="Search tags"
           />
-          <Button variant="secondary" className="bg-theme-secondary hover:bg-theme-secondary-hover">
-            <Search className="text-theme-text" />
+          <Button
+            type="button"
+            variant="secondary"
+            className="bg-theme-secondary hover:bg-theme-secondary-hover"
+            onClick={() => setSearchQuery('')}
+            disabled={!searchQuery}
+            aria-label="Clear search"
+          >
+            {searchQuery ? <X className="text-theme-text" /> : <Search className="text-theme-text" />}
           </Button>
         </div>
         <div className="flex gap-2 ml-auto">
+          {selectedDeletableTags.length > 0 && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="bg-theme-secondary text-theme-text hover:bg-theme-error/85"
+              onClick={() => openDeleteDialog(selectedDeletableTags)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete selected ({selectedDeletableTags.length})
+            </Button>
+          )}
           <Input
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
@@ -181,7 +237,7 @@ export default function TagsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedTags.map((tag) => (
+              {filteredTags.map((tag) => (
                 <TableRow key={tag} className="hover:bg-theme-card">
                   <TableCell>
                     <Checkbox
@@ -209,7 +265,7 @@ export default function TagsPage() {
                         size="icon"
                         variant="secondary"
                         className="bg-theme-secondary text-theme-text hover:!bg-theme-error group"
-                        onClick={() => handleDelete(tag)}
+                        onClick={() => openDeleteDialog([tag])}
                         aria-label={`Delete ${tag}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -236,7 +292,42 @@ export default function TagsPage() {
         }}
         onSaved={(tag) => void handleTagSaved(tag)}
       />
-    </div >
+
+      <AlertDialog
+        open={deleteDialogTags !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialogTags(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteDialogTags && deleteDialogTags.length === 1 ? 'Delete this tag?' : 'Delete tags?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              {deleteDialogTags && deleteDialogTags.length === 1
+                ? `"${deleteDialogTags[0]}" will be removed from the list and stripped from all games. This cannot be undone.`
+                : deleteDialogTags
+                  ? `${deleteDialogTags.length} tags will be removed from the list and stripped from all games. This cannot be undone.`
+                  : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-theme-error text-theme-text hover:bg-theme-error/90"
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmDeleteTags()
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   )
 }
 

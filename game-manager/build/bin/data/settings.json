@@ -12,5 +12,9 @@
   "showTags": true,
   "showQuickAccess": true,
   "runningText": "I'm a running text",
-  "backgroundImage": "settings/background.jpg"
+  "backgroundImage": "settings/background.jpg",
+  "showCategoryIcons": true,
+  "showQuickAccessTitle": true,
+  "showFooter": true,
+  "launchOnWindowsStartup": false
 }

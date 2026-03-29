@@ -4,6 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -34,7 +44,7 @@ import {
   type Client,
   type ClientType,
 } from '@/lib/clients-storage'
-import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
 
 function clampInt(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -178,6 +188,8 @@ export default function ClientsPage() {
   const [bulkStartIp, setBulkStartIp] = useState('192.168.1.10')
   const [bulkCount, setBulkCount] = useState('5')
   const [bulkType, setBulkType] = useState<ClientType>('non-vip')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [deleteDialogIps, setDeleteDialogIps] = useState<string[] | null>(null)
 
   useEffect(() => {
     const run = async () => {
@@ -199,11 +211,28 @@ export default function ClientsPage() {
     })
   }, [clients])
 
-  const allRowsSelected = sortedClients.length > 0 && selectedIps.length === sortedClients.length
+  const filteredClients = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return sortedClients
+    return sortedClients.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.ip.toLowerCase().includes(q) ||
+        clientTypeLabel(c.type).toLowerCase().includes(q)
+    )
+  }, [sortedClients, searchQuery])
+
+  const visibleIps = useMemo(() => filteredClients.map((c) => c.ip), [filteredClients])
+
+  const allRowsSelected =
+    filteredClients.length > 0 && filteredClients.every((c) => selectedIps.includes(c.ip))
 
   const setSelectAll = (checked: boolean) => {
-    if (checked) setSelectedIps(sortedClients.map((c) => c.ip))
-    else setSelectedIps([])
+    if (checked) {
+      setSelectedIps((prev) => Array.from(new Set([...prev, ...visibleIps])))
+    } else {
+      setSelectedIps((prev) => prev.filter((ip) => !visibleIps.includes(ip)))
+    }
   }
 
   const setRowSelected = (ip: string, checked: boolean) => {
@@ -278,21 +307,18 @@ export default function ClientsPage() {
     setBulkOpen(false)
   }
 
-  const handleDelete = async (ip: string) => {
-    const ok = window.confirm(`Delete client ${ip}?`)
-    if (!ok) return
-    const next = clients.filter((c) => c.ip !== ip)
-    setSelectedIps((prev) => prev.filter((x) => x !== ip))
-    await persist(next)
+  const openDeleteClientsDialog = (ips: string[]) => {
+    if (ips.length === 0) return
+    setDeleteDialogIps(ips)
   }
 
-  const handleDeleteSelected = async () => {
-    if (selectedIps.length === 0) return
-    const ok = window.confirm(`Delete ${selectedIps.length} client(s)?`)
-    if (!ok) return
-    const toDelete = new Set(selectedIps)
-    await persist(clients.filter((c) => !toDelete.has(c.ip)))
-    setSelectedIps([])
+  const confirmDeleteClients = async () => {
+    if (!deleteDialogIps || deleteDialogIps.length === 0) return
+    const toDelete = new Set(deleteDialogIps)
+    const next = clients.filter((c) => !toDelete.has(c.ip))
+    setSelectedIps((prev) => prev.filter((ip) => !toDelete.has(ip)))
+    await persist(next)
+    setDeleteDialogIps(null)
   }
 
   return (
@@ -447,11 +473,21 @@ export default function ClientsPage() {
       <div className="wails-no-drag ml-auto flex w-full items-center gap-2 mb-4">
         <div className="flex w-[360px] items-center gap-2">
           <Input
-            placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search clients"
             className="border-theme-border bg-theme-card text-theme-text placeholder:text-theme-muted"
+            aria-label="Search clients"
           />
-          <Button variant="secondary" className="bg-theme-secondary hover:bg-theme-secondary-hover">
-            <Search className="text-theme-text" />
+          <Button
+            type="button"
+            variant="secondary"
+            className="bg-theme-secondary hover:bg-theme-secondary-hover"
+            onClick={() => setSearchQuery('')}
+            disabled={!searchQuery}
+            aria-label="Clear search"
+          >
+            {searchQuery ? <X className="text-theme-text" /> : <Search className="text-theme-text" />}
           </Button>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -459,7 +495,7 @@ export default function ClientsPage() {
             <Button
               variant="secondary"
               className="bg-theme-secondary text-theme-text hover:bg-theme-error/85"
-              onClick={() => void handleDeleteSelected()}
+              onClick={() => openDeleteClientsDialog(selectedIps)}
             >
               <Trash2 className="h-4 w-4" />
               Delete Selected
@@ -510,7 +546,7 @@ export default function ClientsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedClients.map((c) => (
+              {filteredClients.map((c) => (
                 <TableRow key={c.ip} className="hover:bg-theme-card">
                   <TableCell>
                     <Checkbox
@@ -537,7 +573,7 @@ export default function ClientsPage() {
                         size="icon"
                         variant="secondary"
                         className="bg-theme-secondary text-theme-text hover:bg-theme-error"
-                        onClick={() => void handleDelete(c.ip)}
+                        onClick={() => openDeleteClientsDialog([c.ip])}
                         aria-label={`Delete ${c.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -557,6 +593,46 @@ export default function ClientsPage() {
           </Table>
         </div>
       </div>
+
+      <AlertDialog
+        open={deleteDialogIps !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialogIps(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteDialogIps && deleteDialogIps.length === 1 ? 'Delete this client?' : 'Delete clients?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              {deleteDialogIps && deleteDialogIps.length === 1
+                ? (() => {
+                    const ip = deleteDialogIps[0]
+                    const row = clients.find((c) => c.ip === ip)
+                    const label = row ? `${row.name} (${ip})` : ip
+                    return `${label} will be removed. This cannot be undone.`
+                  })()
+                : deleteDialogIps
+                  ? `${deleteDialogIps.length} clients will be removed. This cannot be undone.`
+                  : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-theme-error text-theme-text hover:bg-theme-error/90"
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmDeleteClients()
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

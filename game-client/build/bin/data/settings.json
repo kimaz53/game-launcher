@@ -1,19 +1,20 @@
 {
-  "themeFamilyId": "monokai-octagon",
+  "themeFamilyId": "vs-blue",
   "themeAppearance": "dark",
   "clients": [],
   "shopName": "EZJR Pisonet",
   "gameOrder": "A-Z",
   "whenLaunchingGame": "normal",
   "gameIconSize": "small",
-  "categoryPosition": "top-left",
+  "categoryPosition": "center-left",
   "quickAccessPosition": "center-right",
   "tagsPosition": "top-left",
   "showTags": true,
   "showQuickAccess": true,
   "runningText": "SA LABAS LANG ANG YOSI BREAK • LIGO MUNA BAGO MAGLARO",
-  "backgroundImage": "settings/background.jpg",
-  "showQuickAccessTitle": true,
+  "showQuickAccessTitle": false,
   "showFooter": true,
-  "launchOnWindowsStartup": true
+  "launchOnWindowsStartup": false,
+  "showCategoryIcons": true,
+  "backgroundImage": "settings/background.jpg"
 }

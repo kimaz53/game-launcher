@@ -6,6 +6,16 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Table,
   TableBody,
   TableCell,
@@ -18,7 +28,7 @@ import { hasWailsApp, loadGames, saveGames } from '@/lib/games-storage'
 import { loadClients, type Client } from '@/lib/clients-storage'
 import { yieldForNativeFileDialog } from '@/lib/yield-for-native-file-dialog'
 import { GetDataDir, PickExecutableFile, ReadImageFileDataURL } from '@/wailsjs/wailsjs/go/main/App'
-import { ArrowUpDown, ChevronDown, FileCode2, FileQuestion, FileQuestionMark, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, Gamepad2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type SortKey = 'name' | 'category' | 'group' | 'tags' | 'platform' | 'status'
@@ -100,7 +110,7 @@ function ExecutableIcon({ relPath, alt }: { relPath?: string; alt: string }) {
 
   return (
     <div className="flex h-10 w-10 items-center justify-center rounded-md border border-theme-border bg-theme-secondary">
-      <FileQuestionMark className="h-5 w-5 text-theme-accent" aria-hidden />
+      <Gamepad2 className="h-5 w-5 text-theme-accent" aria-hidden />
     </div>
   )
 }
@@ -116,17 +126,8 @@ export default function GamesPage() {
   const [allowedClientsExpanded, setAllowedClientsExpanded] = useState<Record<number, boolean>>({})
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [testPickerResult, setTestPickerResult] = useState<string | null>(null)
-
-  const runTestFilePicker = async () => {
-    if (!hasWailsApp()) {
-      window.alert('Run the Game Manager Wails app to test the native file picker.')
-      return
-    }
-    await yieldForNativeFileDialog()
-    const path = await PickExecutableFile()
-    setTestPickerResult(path ? path : '(cancelled)')
-  }
+  const [searchQuery, setSearchQuery] = useState('')
+  const [deleteDialogIds, setDeleteDialogIds] = useState<number[] | null>(null)
 
   const refreshGames = () => {
     void loadGames().then((data) => setGames(data))
@@ -149,22 +150,43 @@ export default function GamesPage() {
     void saveGames(games)
   }, [games, hydrated])
 
+  const filteredGames = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return games
+
+    return games.filter((game) => {
+      const tagsJoined = game.tags.join(' ').toLowerCase()
+      const clientsJoined = game.allowedClientIps.join(' ').toLowerCase()
+      return (
+        game.name.toLowerCase().includes(q) ||
+        String(game.category).toLowerCase().includes(q) ||
+        tagsJoined.includes(q) ||
+        String(game.status).toLowerCase().includes(q) ||
+        clientsJoined.includes(q) ||
+        String(game.id).includes(q)
+      )
+    })
+  }, [games, searchQuery])
+
   const sortedGames = useMemo(() => {
     const valueForSort = (game: Game, key: SortKey) => {
       if (key === 'tags') return game.tags.join(', ')
       return game[key]
     }
 
-    const sorted = [...games].sort((a, b) => {
+    const sorted = [...filteredGames].sort((a, b) => {
       const left = valueForSort(a, sortKey)
       const right = valueForSort(b, sortKey)
       return String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
     })
 
     return sortDirection === 'asc' ? sorted : sorted.reverse()
-  }, [games, sortDirection, sortKey])
+  }, [filteredGames, sortDirection, sortKey])
 
-  const allRowsSelected = sortedGames.length > 0 && selectedIds.length === sortedGames.length
+  const visibleGameIds = useMemo(() => sortedGames.map((g) => g.id), [sortedGames])
+
+  const allRowsSelected =
+    sortedGames.length > 0 && sortedGames.every((g) => selectedIds.includes(g.id))
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -177,9 +199,9 @@ export default function GamesPage() {
 
   const setSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(sortedGames.map((game) => game.id))
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleGameIds])))
     } else {
-      setSelectedIds([])
+      setSelectedIds((prev) => prev.filter((id) => !visibleGameIds.includes(id)))
     }
   }
 
@@ -194,12 +216,23 @@ export default function GamesPage() {
     setEditGameOpen(true)
   }
 
-  const handleDelete = (id: number) => {
-    const confirmed = window.confirm('Delete this game?')
-    if (!confirmed) return
-    setGames((prev) => prev.filter((item) => item.id !== id))
-    setSelectedIds((prev) => prev.filter((item) => item !== id))
+  const openDeleteDialog = (ids: number[]) => {
+    if (ids.length === 0) return
+    setDeleteDialogIds(ids)
   }
+
+  const confirmDeleteGames = () => {
+    if (!deleteDialogIds || deleteDialogIds.length === 0) return
+    const toRemove = new Set(deleteDialogIds)
+    setGames((prev) => prev.filter((item) => !toRemove.has(item.id)))
+    setSelectedIds((prev) => prev.filter((id) => !toRemove.has(id)))
+    setDeleteDialogIds(null)
+  }
+
+  const selectedDeletableIds = useMemo(
+    () => selectedIds.filter((id) => games.some((g) => g.id === id)),
+    [games, selectedIds]
+  )
 
   const clientNameByIp = useMemo(() => {
     const map = new Map<string, string>()
@@ -248,14 +281,34 @@ export default function GamesPage() {
       <div className="wails-no-drag ml-auto flex w-full items-center gap-2 mb-4">
         <div className="flex w-[360px] items-center gap-2">
           <Input
-            placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search games"
             className="border-theme-border bg-theme-card text-theme-text placeholder:text-theme-muted"
+            aria-label="Search games"
           />
-          <Button variant="secondary" className="bg-theme-secondary hover:bg-theme-secondary-hover">
-            <Search className="text-theme-text" />
+          <Button
+            type="button"
+            variant="secondary"
+            className="bg-theme-secondary hover:bg-theme-secondary-hover"
+            onClick={() => setSearchQuery('')}
+            disabled={!searchQuery}
+            aria-label="Clear search"
+          >
+            {searchQuery ? <X className="text-theme-text" /> : <Search className="text-theme-text" />}
           </Button>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {selectedDeletableIds.length > 0 && (
+            <Button
+              variant="secondary"
+              className="bg-theme-secondary text-theme-text hover:bg-theme-error/85"
+              onClick={() => openDeleteDialog(selectedDeletableIds)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete selected ({selectedDeletableIds.length})
+            </Button>
+          )}
           <Button
             className="bg-theme-primary text-theme-text hover:bg-theme-primary-hover"
             onClick={() => setAddGameOpen(true)}
@@ -428,7 +481,7 @@ export default function GamesPage() {
                         size="icon"
                         variant="secondary"
                         className="bg-theme-secondary text-theme-text hover:bg-theme-error"
-                        onClick={() => handleDelete(game.id)}
+                        onClick={() => openDeleteDialog([game.id])}
                         aria-label={`Delete ${game.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -441,6 +494,46 @@ export default function GamesPage() {
           </Table>
         </div>
       </div>
+
+      <AlertDialog
+        open={deleteDialogIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialogIds(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteDialogIds && deleteDialogIds.length === 1 ? 'Delete this game?' : 'Delete games?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              {deleteDialogIds && deleteDialogIds.length === 1
+                ? (() => {
+                    const g = games.find((x) => x.id === deleteDialogIds[0])
+                    return g
+                      ? `"${g.name}" will be removed from the library. This cannot be undone.`
+                      : 'This game will be removed. This cannot be undone.'
+                  })()
+                : deleteDialogIds
+                  ? `${deleteDialogIds.length} games will be removed from the library. This cannot be undone.`
+                  : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-theme-error text-theme-text hover:bg-theme-error/90"
+              onClick={(e) => {
+                e.preventDefault()
+                confirmDeleteGames()
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -9,20 +9,27 @@
     "tags": [],
     "platform": "Local",
     "status": "Installed",
-    "exeIconRelPath": "icons/250154c89ac440bdeb2af45ea0050cbc.png",
-    "allowedClientIps": []
+    "coverRelPath": "covers/1.png",
+    "allowedClientIps": [
+      "192.168.1.10",
+      "192.168.1.11",
+      "192.168.0.163"
+    ]
   },
   {
     "id": 2,
-    "name": "Google",
-    "exePath": "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
-    "args": "",
-    "category": "",
+    "name": "Valorant",
+    "exePath": "C:\\Riot Games\\Riot Client\\RiotClientServices.exe",
+    "args": "--launch-product=valorant --launch-patchline=live",
+    "category": "Online Games",
     "group": "",
     "tags": [],
     "platform": "Local",
     "status": "Installed",
-    "exeIconRelPath": "icons/a0d82a34861c9c76eea0a1198e9f83f1.png",
-    "allowedClientIps": []
+    "coverRelPath": "covers/2.png",
+    "exeIconRelPath": "icons/013a90d1812c0dbf9d697672e6147e1e.png",
+    "allowedClientIps": [
+      "192.168.0.163"
+    ]
   }
 ]

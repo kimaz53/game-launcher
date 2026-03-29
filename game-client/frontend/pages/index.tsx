@@ -1,6 +1,16 @@
 import Head from 'next/head'
-import { useEffect, useMemo, useState } from 'react'
-import { FolderOpen, Gamepad2, LayoutGrid, Minus, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FolderOpen,
+  Gamepad2,
+  LayoutGrid,
+  Minus,
+  Search,
+  X,
+} from 'lucide-react'
 import { Button } from '../components/ui/button'
 import {
   AlertDialog,
@@ -14,11 +24,14 @@ import {
 import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import {
+  GetClientIdentityJSON,
   GetComputerName,
   GetWindowsStartupStatus,
   LaunchGame,
   LoadManagerCategoriesJSON,
+  LoadManagerClientsJSON,
   LoadManagerGamesJSON,
+  LoadManagerLinksJSON,
   LoadManagerQuickAccessJSON,
   LoadManagerSettingsJSON,
   ReadManagerImageDataURL,
@@ -35,12 +48,24 @@ type ManagerGame = {
   tags: string[]
   coverRelPath?: string
   exeIconRelPath?: string
+  /** Lowercased IPs; empty = visible to all clients */
+  allowedClientIps?: string[]
 }
+
+type ManagerClient = { name: string; ip: string }
 
 type ManagerCategory = { name: string; iconRelPath?: string }
 
 type CategoryTabItem = { key: string; label: string; iconRelPath?: string }
 type IconSize = 'small' | 'medium' | 'large'
+
+type ManagerLink = {
+  id: number
+  label: string
+  url: string
+  /** Relative image path under shared data (optional). */
+  icon?: string
+}
 
 type ManagerSettings = {
   shopName?: string
@@ -48,6 +73,8 @@ type ManagerSettings = {
   whenLaunchingGame?: 'minimized' | 'normal' | 'exit'
   gameIconSize?: IconSize
   categoryPosition?: string
+  /** Default true when unset */
+  showCategoryIcons?: boolean
   quickAccessPosition?: string
   tagsPosition?: string
   showTags?: boolean
@@ -66,6 +93,173 @@ function parseMulti(csv: string | undefined): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+}
+
+function normalizeIp(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+function normalizeHostLabel(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+function dedupeLowerStrings(values: string[]): string[] {
+  const seen: Record<string, true> = {}
+  const out: string[] = []
+  for (const v of values) {
+    const k = normalizeIp(v)
+    if (!k || seen[k]) continue
+    seen[k] = true
+    out.push(k)
+  }
+  return out
+}
+
+function parseAllowedClientIps(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return dedupeLowerStrings(raw.map((x) => String(x)))
+  }
+  if (typeof raw === 'string') {
+    return dedupeLowerStrings(raw.split(','))
+  }
+  return []
+}
+
+function parseManagerLinksJson(json: string): ManagerLink[] {
+  try {
+    const raw = JSON.parse(json) as unknown
+    if (!Array.isArray(raw)) return []
+    const seen = new Set<number>()
+    const out: ManagerLink[] = []
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue
+      const o = item as Record<string, unknown>
+      const id = Number(o.id)
+      const label = typeof o.label === 'string' ? o.label.trim() : ''
+      const url = typeof o.url === 'string' ? o.url.trim() : ''
+      const iconRaw = typeof o.icon === 'string' ? o.icon.trim() : ''
+      if (!Number.isFinite(id) || id <= 0 || seen.has(id) || !label || !url) continue
+      seen.add(id)
+      const row: ManagerLink = { id, label, url }
+      if (iconRaw) row.icon = iconRaw
+      out.push(row)
+    }
+    return out.sort((a, b) => a.id - b.id)
+  } catch {
+    return []
+  }
+}
+
+function HeaderLinkButton({ link }: { link: ManagerLink }) {
+  const [iconSrc, setIconSrc] = useState('')
+
+  useEffect(() => {
+    const p = link.icon?.trim()
+    if (!p) {
+      setIconSrc('')
+      return
+    }
+    let cancelled = false
+    void ReadManagerImageDataURL(p).then((d) => {
+      if (!cancelled) setIconSrc(d || '')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [link.icon])
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="flex h-8 max-w-[min(12rem,40vw)] shrink-0 flex-row items-center gap-1.5 px-2.5 text-xs font-medium text-theme-text hover:bg-theme-card/80"
+      title={`${link.label} — ${link.url}`}
+      onClick={() => BrowserOpenURL(link.url)}
+    >
+      {iconSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={iconSrc} alt="" className="h-4 w-4 shrink-0 object-contain" aria-hidden />
+      ) : null}
+      <span className="min-w-0 truncate">{link.label}</span>
+    </Button>
+  )
+}
+
+function parseManagerGame(raw: unknown): ManagerGame {
+  if (!raw || typeof raw !== 'object') {
+    return { id: 0, name: '', category: '', tags: [] }
+  }
+  const r = raw as Record<string, unknown>
+  const tagsRaw = r.tags
+  let tags: string[] = []
+  if (Array.isArray(tagsRaw)) {
+    tags = tagsRaw.map(String)
+  } else if (typeof tagsRaw === 'string') {
+    tags = tagsRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  return {
+    id: Number(r.id) || 0,
+    name: String(r.name ?? ''),
+    exePath: r.exePath != null ? String(r.exePath) : undefined,
+    args: r.args != null ? String(r.args) : undefined,
+    category: String(r.category ?? ''),
+    tags,
+    coverRelPath: r.coverRelPath != null ? String(r.coverRelPath) : undefined,
+    exeIconRelPath: r.exeIconRelPath != null ? String(r.exeIconRelPath) : undefined,
+    allowedClientIps: parseAllowedClientIps(r.allowedClientIps),
+  }
+}
+
+function parseManagerClients(json: string): ManagerClient[] {
+  try {
+    const raw = JSON.parse(json) as unknown
+    if (!Array.isArray(raw)) return []
+    const out: ManagerClient[] = []
+    for (const row of raw) {
+      if (!row || typeof row !== 'object') continue
+      const o = row as Record<string, unknown>
+      const name = typeof o.name === 'string' ? o.name.trim() : ''
+      const ip = typeof o.ip === 'string' ? o.ip.trim() : ''
+      if (!name || !ip) continue
+      out.push({ name, ip })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+/** Game is shown only if allowedClientIps is empty, or this PC matches a registered client (same IP + name as in clients.json). */
+function isGameVisibleToClient(
+  game: ManagerGame,
+  identity: { hostname: string; ipv4: string[] } | null,
+  clients: ManagerClient[],
+): boolean {
+  const allowed = game.allowedClientIps
+  if (!allowed || allowed.length === 0) return true
+  if (!identity || !identity.hostname.trim()) return false
+
+  const host = normalizeHostLabel(identity.hostname)
+  const localIPs = new Set(identity.ipv4.map(normalizeIp))
+
+  const clientByIP = new Map<string, ManagerClient>()
+  for (const c of clients) {
+    const k = normalizeIp(c.ip)
+    if (k) clientByIP.set(k, c)
+  }
+
+  for (const allowedIP of allowed) {
+    const ip = normalizeIp(allowedIP)
+    if (!ip || !localIPs.has(ip)) continue
+    const client = clientByIP.get(ip)
+    if (!client) continue
+    if (normalizeHostLabel(client.name) === host) return true
+  }
+  return false
 }
 
 const imageCache = new Map<string, string>()
@@ -95,12 +289,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#2563EB',
     },
     light: {
-      appBackground: '#eef4ff',
-      panel: '#d8e6ff',
-      panelAlt: '#cbdcff',
-      border: '#b4c8ef',
-      text: '#1d2f50',
-      muted: '#4f6487',
+      appBackground: '#E8EEF8',
+      panel: '#DCE8FC',
+      panelAlt: '#CFDFF8',
+      border: '#9BB0D6',
+      text: '#0D1528',
+      muted: '#3D4F6E',
       primary: '#2563EB',
       primaryHover: '#1D4ED8',
     },
@@ -117,12 +311,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#0D9488',
     },
     light: {
-      appBackground: '#F3F8F7',
-      panel: '#FAFDFC',
+      appBackground: '#EDF2F1',
+      panel: '#F5FAF9',
       panelAlt: '#FFFFFF',
-      border: '#C5D5D2',
-      text: '#152320',
-      muted: '#5C6F6C',
+      border: '#A8BDB8',
+      text: '#0D1B18',
+      muted: '#3D524E',
       primary: '#0F766E',
       primaryHover: '#0D5C56',
     },
@@ -139,12 +333,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#7C3AED',
     },
     light: {
-      appBackground: '#FAFAFF',
+      appBackground: '#F2F0FA',
       panel: '#FFFFFF',
       panelAlt: '#FFFFFF',
-      border: '#D4D2E8',
-      text: '#1E1B2E',
-      muted: '#6B6680',
+      border: '#B8B3D0',
+      text: '#14121F',
+      muted: '#4A4558',
       primary: '#6D28D9',
       primaryHover: '#5B21B6',
     },
@@ -161,12 +355,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#E91E63',
     },
     light: {
-      appBackground: '#F5F1E8',
-      panel: '#EFE9DD',
-      panelAlt: '#FFFCF5',
-      border: '#C9C2B2',
-      text: '#3A3D2E',
-      muted: '#6B6658',
+      appBackground: '#EDE8DE',
+      panel: '#F5F0E6',
+      panelAlt: '#FFFDF8',
+      border: '#B0A896',
+      text: '#252820',
+      muted: '#4F4A3F',
       primary: '#C4154B',
       primaryHover: '#A91242',
     },
@@ -183,12 +377,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#9A8AE6',
     },
     light: {
-      appBackground: '#F7F5F2',
-      panel: '#EFEBE7',
-      panelAlt: '#FFFBF8',
-      border: '#CBC6C0',
-      text: '#2E2B28',
-      muted: '#6F6A66',
+      appBackground: '#EEEBE6',
+      panel: '#F6F3EE',
+      panelAlt: '#FFFCF9',
+      border: '#B5AFA7',
+      text: '#1F1C19',
+      muted: '#4F4A45',
       primary: '#6B5BC9',
       primaryHover: '#5849B0',
     },
@@ -205,12 +399,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#FFA94D',
     },
     light: {
-      appBackground: '#F0F2F5',
-      panel: '#E8EAEF',
+      appBackground: '#E8EAEF',
+      panel: '#F2F4F8',
       panelAlt: '#FFFFFF',
-      border: '#C5CAD5',
-      text: '#282A33',
-      muted: '#5E6470',
+      border: '#A8AFBC',
+      text: '#161820',
+      muted: '#454A54',
       primary: '#D97706',
       primaryHover: '#B45309',
     },
@@ -227,12 +421,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#B57614',
     },
     light: {
-      appBackground: '#FBF1C7',
-      panel: '#F2E5BC',
-      panelAlt: '#F9F5D7',
-      border: '#D5C4A1',
-      text: '#3C3836',
-      muted: '#665C54',
+      appBackground: '#F2E6C3',
+      panel: '#FAF0D2',
+      panelAlt: '#FFF9E6',
+      border: '#C4B28C',
+      text: '#282421',
+      muted: '#504945',
       primary: '#B57614',
       primaryHover: '#9D6308',
     },
@@ -249,12 +443,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#A67DE8',
     },
     light: {
-      appBackground: '#f3f4f9',
-      panel: '#e7eaf5',
-      panelAlt: '#dfe3f0',
-      border: '#c9d1e2',
-      text: '#343746',
-      muted: '#62677E',
+      appBackground: '#EEEEF5',
+      panel: '#E8EAF5',
+      panelAlt: '#E0E3F0',
+      border: '#B4B4CC',
+      text: '#1E2130',
+      muted: '#4A4F63',
       primary: '#7C5ECF',
       primaryHover: '#6B4BC4',
     },
@@ -271,12 +465,12 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       primaryHover: '#4C6F99',
     },
     light: {
-      appBackground: '#ECEFF4',
-      panel: '#E5E9F0',
+      appBackground: '#E2E6ED',
+      panel: '#EEF1F6',
       panelAlt: '#FFFFFF',
-      border: '#D8DEE9',
-      text: '#2E3440',
-      muted: '#4C566A',
+      border: '#B8C0D0',
+      text: '#1C2430',
+      muted: '#3D4759',
       primary: '#5E81AC',
       primaryHover: '#4C6F99',
     },
@@ -418,16 +612,255 @@ function CategoryTabIcon({ relPath }: { relPath?: string }) {
   )
 }
 
-function CategoryTabLabel({ tab, tabAlign }: { tab: CategoryTabItem; tabAlign: 'bar' | 'left' | 'right' }) {
+function CategoryTabLabel({
+  tab,
+  tabAlign,
+  showIcons,
+}: {
+  tab: CategoryTabItem
+  tabAlign: 'bar' | 'left' | 'right'
+  showIcons: boolean
+}) {
   return (
     <span className={categoryTabRowClass(tabAlign)}>
-      {tab.key === 'ALL' ? (
-        <LayoutGrid className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-      ) : (
-        <CategoryTabIcon relPath={tab.iconRelPath} />
-      )}
+      {showIcons ? (
+        tab.key === 'ALL' ? (
+          <LayoutGrid className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+        ) : (
+          <CategoryTabIcon relPath={tab.iconRelPath} />
+        )
+      ) : null}
       <span className="truncate">{tab.label}</span>
     </span>
+  )
+}
+
+function tabKeyAttr(key: string): string {
+  return encodeURIComponent(key).replace(/%/g, '_')
+}
+
+/** Category rail: stable box model, launcher-style glass + pills; horizontal bar scrolls + "More" when crowded. */
+function LauncherCategoryTabs({
+  tabItems,
+  activeTab,
+  onSelect,
+  direction,
+  tabAlign,
+  showIcons,
+  justifyClass,
+}: {
+  tabItems: CategoryTabItem[]
+  activeTab: string
+  onSelect: (key: string) => void
+  direction: 'row' | 'column'
+  tabAlign: 'bar' | 'left' | 'right'
+  showIcons: boolean
+  justifyClass?: string
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const moreWrapRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  const updateScrollHints = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const maxScroll = el.scrollWidth - el.clientWidth
+    if (maxScroll <= 2) {
+      setCanScrollLeft(false)
+      setCanScrollRight(false)
+      return
+    }
+    setCanScrollLeft(el.scrollLeft > 4)
+    setCanScrollRight(el.scrollLeft < maxScroll - 4)
+  }, [])
+
+  useLayoutEffect(() => {
+    updateScrollHints()
+  }, [tabItems, updateScrollHints])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => updateScrollHints())
+    ro.observe(el)
+    el.addEventListener('scroll', updateScrollHints, { passive: true })
+    return () => {
+      ro.disconnect()
+      el.removeEventListener('scroll', updateScrollHints)
+    }
+  }, [tabItems, updateScrollHints])
+
+  useEffect(() => {
+    if (!moreOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (moreWrapRef.current && !moreWrapRef.current.contains(e.target as Node)) setMoreOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [moreOpen])
+
+  useEffect(() => {
+    if (direction !== 'row') return
+    const el = scrollRef.current
+    if (!el) return
+    const attr = tabKeyAttr(activeTab)
+    const node = el.querySelector(`[data-cat-tab="${attr}"]`) as HTMLElement | null
+    node?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [activeTab, direction, tabItems])
+
+  const scrollByDir = (delta: number) => {
+    scrollRef.current?.scrollBy({ left: delta, behavior: 'smooth' })
+  }
+
+  const panel = cn(
+    'rounded-lg border border-theme-border/50 bg-theme-sidebar/40 shadow-sm backdrop-blur-md',
+    'p-0.5',
+    direction === 'column' && 'min-w-[10.5rem] max-w-[16rem]',
+  )
+
+  const listClass =
+    direction === 'row'
+      ? 'inline-flex min-w-0 flex-nowrap items-stretch gap-1'
+      : 'flex w-full flex-col gap-1'
+
+  const tabButton = (tab: CategoryTabItem) => {
+    const active = activeTab === tab.key
+    return (
+      <button
+        key={tab.key}
+        type="button"
+        role="tab"
+        data-cat-tab={tabKeyAttr(tab.key)}
+        aria-selected={active}
+        onClick={() => onSelect(tab.key)}
+        className={cn(
+          'inline-flex min-h-8 shrink-0 items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-normal transition-colors duration-150',
+          'border border-transparent',
+          direction === 'column' && 'w-full',
+          tabAlign === 'right' && direction === 'column' && 'justify-end text-right',
+          tabAlign === 'left' && direction === 'column' && 'justify-start text-left',
+          active
+            ? 'bg-theme-primary text-theme-text shadow-sm'
+            : 'text-theme-muted hover:bg-theme-card/70 hover:text-theme-text',
+        )}
+      >
+        <CategoryTabLabel tab={tab} tabAlign={tabAlign} showIcons={showIcons} />
+      </button>
+    )
+  }
+
+  if (direction === 'column') {
+    return (
+      <div className={cn('mb-3 flex gap-2', justifyClass)}>
+        <div
+          className={cn(
+            panel,
+            listClass,
+            'max-h-[min(52vh,28rem)] overflow-y-auto overflow-x-hidden [scrollbar-width:thin]',
+          )}
+          role="tablist"
+          aria-label="Game categories"
+        >
+          {tabItems.map((tab) => tabButton(tab))}
+        </div>
+      </div>
+    )
+  }
+
+  const showArrows = canScrollLeft || canScrollRight
+
+  return (
+    <div className={cn('mb-3 flex min-w-0 flex-nowrap items-center gap-1', justifyClass)}>
+      {showArrows ? (
+        <button
+          type="button"
+          aria-label="Scroll categories left"
+          disabled={!canScrollLeft}
+          onClick={() => scrollByDir(-200)}
+          className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-theme-border/50 bg-theme-card/60 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
+            !canScrollLeft && 'pointer-events-none opacity-30',
+          )}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+      ) : null}
+
+      <div
+        ref={scrollRef}
+        className={cn(
+          panel,
+          listClass,
+          'min-w-0 flex-1 overflow-x-auto overflow-y-hidden scroll-smooth [scrollbar-width:thin]',
+        )}
+        role="tablist"
+        aria-label="Game categories"
+      >
+        {tabItems.map((tab) => tabButton(tab))}
+      </div>
+
+      {showArrows ? (
+        <button
+          type="button"
+          aria-label="Scroll categories right"
+          disabled={!canScrollRight}
+          onClick={() => scrollByDir(200)}
+          className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-theme-border/50 bg-theme-card/60 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
+            !canScrollRight && 'pointer-events-none opacity-30',
+          )}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      ) : null}
+
+      {tabItems.length > 1 ? (
+        <div ref={moreWrapRef} className="relative shrink-0">
+          <button
+            type="button"
+            aria-expanded={moreOpen}
+            aria-haspopup="listbox"
+            onClick={() => setMoreOpen((o) => !o)}
+            className="flex h-8 items-center gap-1 rounded-md border border-theme-border/50 bg-theme-card/70 px-2 text-xs text-theme-muted shadow-sm backdrop-blur-md hover:bg-theme-card hover:text-theme-text"
+            title="All categories"
+          >
+            <span className="hidden sm:inline">More</span>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', moreOpen && 'rotate-180')} />
+          </button>
+          {moreOpen ? (
+            <div
+              role="listbox"
+              aria-label="All categories"
+              className="absolute right-0 z-50 mt-1 max-h-64 min-w-[12rem] overflow-y-auto rounded-lg border border-theme-border/60 bg-theme-sidebar/95 py-1 shadow-lg backdrop-blur-md"
+            >
+              {tabItems.map((tab) => {
+                const active = activeTab === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => {
+                      onSelect(tab.key)
+                      setMoreOpen(false)
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-3 py-2 text-left text-xs',
+                      active ? 'bg-theme-primary/90 text-theme-text' : 'text-theme-text hover:bg-theme-card/80',
+                    )}
+                  >
+                    <CategoryTabLabel tab={tab} tabAlign="left" showIcons={showIcons} />
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -449,9 +882,9 @@ function iconOnlyImageClass(iconSize: IconSize): string {
     case 'small':
       return 'h-[3.125rem] w-[3.125rem] object-fill'
     case 'large':
-      return 'max-h-[7rem] max-w-[7rem] object-contain'
+      return 'object-contain'
     default:
-      return 'max-h-[5.5rem] max-w-[5.5rem] object-contain'
+      return 'object-contain'
   }
 }
 
@@ -460,7 +893,7 @@ function GameArtwork({
   iconSize,
   tagsPosition,
   showTags,
-  className
+  className,
 }: {
   game: ManagerGame
   iconSize: IconSize
@@ -505,7 +938,7 @@ function GameArtwork({
 
   const cls =
     iconSize === 'small'
-      ? 'h-[3.125rem] w-[3.125rem]'
+      ? 'h-[3.125rem] w-[3.125rem] !bg-transparent !border-none'
       : iconSize === 'large'
         ? 'h-[220px] w-[160px]'
         : 'h-[180px] w-[132px]'
@@ -513,7 +946,7 @@ function GameArtwork({
   const containerClass = cn(
     'rounded-md border border-theme-border bg-theme-sidebar flex items-center justify-center overflow-hidden',
     cls,
-    className
+    className,
   )
 
   const coverImgClass = 'h-full w-full object-cover'
@@ -531,7 +964,7 @@ function GameArtwork({
           />
         </div>
         {showTags && game.tags?.length ? (
-          <div className={`absolute flex max-w-[90%] flex-wrap gap-1 ${tagPosClass(tagsPosition)}`}>
+          <div className={`absolute z-10 flex max-w-[90%] flex-wrap gap-1 ${tagPosClass(tagsPosition)}`}>
             {game.tags.slice(0, 3).map((tag) => (
               <Badge key={tag} className="rounded-full border border-theme-border bg-theme-sidebar/85 px-1.5 py-1 text-[10px] leading-none text-theme-text">
                 {tag}
@@ -549,7 +982,7 @@ function GameArtwork({
         <div className="text-2xl font-bold text-theme-muted">{game.name.slice(0, 1).toUpperCase()}</div>
       </div>
       {showTags && iconSize !== 'small' && game.tags?.length ? (
-        <div className={`absolute flex max-w-[90%] flex-wrap gap-1 ${tagPosClass(tagsPosition)}`}>
+        <div className={`absolute z-10 flex max-w-[90%] flex-wrap gap-1 ${tagPosClass(tagsPosition)}`}>
           {game.tags.slice(0, 3).map((tag) => (
             <Badge key={tag} className="rounded-full border border-theme-border bg-theme-sidebar/85 px-1.5 py-1 text-[10px] leading-none text-theme-text">
               {tag}
@@ -563,6 +996,8 @@ function GameArtwork({
 
 export default function Home() {
   const [games, setGames] = useState<ManagerGame[]>([])
+  const [managerClients, setManagerClients] = useState<ManagerClient[]>([])
+  const [clientIdentity, setClientIdentity] = useState<{ hostname: string; ipv4: string[] } | null>(null)
   const [categories, setCategories] = useState<ManagerCategory[]>([])
   const [quickAccessIds, setQuickAccessIds] = useState<number[]>([])
   const [settings, setSettings] = useState<ManagerSettings>({})
@@ -580,6 +1015,7 @@ export default function Home() {
     gameName?: string
   } | null>(null)
   const [windowsStartupStatus, setWindowsStartupStatus] = useState<'on' | 'off' | ''>('')
+  const [headerLinks, setHeaderLinks] = useState<ManagerLink[]>([])
 
   useEffect(() => {
     void GetWindowsStartupStatus()
@@ -589,14 +1025,29 @@ export default function Home() {
       .catch(() => { })
   }, [])
 
+  /** Clear selection on click outside tiles (`click` avoids scrollbar pointerdown quirks). */
+  useEffect(() => {
+    function onClickCapture(e: MouseEvent) {
+      const t = e.target
+      if (!(t instanceof Element)) return
+      if (t.closest('[data-game-tile]')) return
+      setSelectedGameId(null)
+    }
+    document.addEventListener('click', onClickCapture, true)
+    return () => document.removeEventListener('click', onClickCapture, true)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     async function run() {
-      const [gamesJson, categoriesJson, quickJson, settingsJson] = await Promise.all([
+      const [gamesJson, categoriesJson, quickJson, settingsJson, clientsJson, identityJson, linksJson] = await Promise.all([
         LoadManagerGamesJSON(),
         LoadManagerCategoriesJSON(),
         LoadManagerQuickAccessJSON(),
         LoadManagerSettingsJSON(),
+        LoadManagerClientsJSON(),
+        GetClientIdentityJSON(),
+        LoadManagerLinksJSON(),
       ])
       void GetComputerName().then((n) => {
         if (!cancelled && n?.trim()) setComputerName(n.trim())
@@ -604,9 +1055,21 @@ export default function Home() {
 
       if (cancelled) return
 
+      setManagerClients(parseManagerClients(clientsJson))
       try {
-        const parsedGames = JSON.parse(gamesJson) as ManagerGame[]
-        setGames(Array.isArray(parsedGames) ? parsedGames : [])
+        const idParsed = JSON.parse(identityJson) as { hostname?: string; ipv4?: unknown }
+        const hostname = typeof idParsed.hostname === 'string' ? idParsed.hostname : ''
+        const ipv4 = Array.isArray(idParsed.ipv4)
+          ? idParsed.ipv4.map((x) => String(x).trim()).filter(Boolean)
+          : []
+        setClientIdentity({ hostname, ipv4 })
+      } catch {
+        setClientIdentity(null)
+      }
+
+      try {
+        const parsedGames = JSON.parse(gamesJson) as unknown[]
+        setGames(Array.isArray(parsedGames) ? parsedGames.map(parseManagerGame) : [])
       } catch {
         setGames([])
       }
@@ -624,6 +1087,8 @@ export default function Home() {
       } catch {
         setQuickAccessIds([])
       }
+
+      setHeaderLinks(parseManagerLinksJson(linksJson))
 
       try {
         const parsedSettings = JSON.parse(settingsJson) as ManagerSettings
@@ -684,6 +1149,7 @@ export default function Home() {
   const quickAccessPosition = normalizePos(settings.quickAccessPosition, 'center-right')
   const tagsPosition = normalizePos(settings.tagsPosition, 'top-left')
   const showTags = settings.showTags !== false
+  const showCategoryIcons = settings.showCategoryIcons !== false
   const showQuickAccess = settings.showQuickAccess !== false
   const showQuickAccessTitle = settings.showQuickAccessTitle !== false
   const showFooter = settings.showFooter !== false
@@ -712,11 +1178,22 @@ export default function Home() {
   // When Quick Access is stacked above/below, we always center it horizontally.
   const quickSlotAlignClass = quickIsStacked ? 'items-center' : quickVerticalClass
 
+  const visibleGames = useMemo(
+    () => games.filter((g) => isGameVisibleToClient(g, clientIdentity, managerClients)),
+    [games, clientIdentity, managerClients],
+  )
+
   const tabItems = useMemo((): CategoryTabItem[] => {
     const items: CategoryTabItem[] = [{ key: 'ALL', label: 'ALL' }]
+    const assignedNames = new Set<string>()
+    for (const g of visibleGames) {
+      for (const part of parseMulti(g.category)) {
+        assignedNames.add(part)
+      }
+    }
     for (const c of categories) {
       const name = c.name.trim()
-      if (!name) continue
+      if (!name || !assignedNames.has(name)) continue
       const icon = (c.iconRelPath ?? '').trim()
       items.push({
         key: name,
@@ -725,11 +1202,17 @@ export default function Home() {
       })
     }
     return items
-  }, [categories])
+  }, [categories, visibleGames])
+
+  useEffect(() => {
+    if (activeTab === 'ALL') return
+    const valid = new Set(tabItems.map((t) => t.key))
+    if (!valid.has(activeTab)) setActiveTab('ALL')
+  }, [activeTab, tabItems])
 
   const filteredGames = useMemo(() => {
     const query = committedSearch.trim().toLowerCase()
-    const base = games.filter((g) => {
+    const base = visibleGames.filter((g) => {
       if (activeTab !== 'ALL') {
         const cats = parseMulti(g.category)
         if (!cats.includes(activeTab)) return false
@@ -740,13 +1223,13 @@ export default function Home() {
 
     const sorted = [...base].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
     return sortOrder === 'Z-A' ? sorted.reverse() : sorted
-  }, [games, activeTab, committedSearch, sortOrder])
+  }, [visibleGames, activeTab, committedSearch, sortOrder])
 
   const quickAccessGames = useMemo(() => {
     const map = new Map<number, ManagerGame>()
-    games.forEach((g) => map.set(g.id, g))
+    visibleGames.forEach((g) => map.set(g.id, g))
     return quickAccessIds.map((id) => map.get(id)).filter(Boolean) as ManagerGame[]
-  }, [games, quickAccessIds])
+  }, [visibleGames, quickAccessIds])
 
   /** In-app only: native MessageBox/TaskDialog in fullscreen WebView2 can crash the host with no visible prompt. */
   async function showLaunchError(title: string, message: string, game?: ManagerGame) {
@@ -819,14 +1302,17 @@ export default function Home() {
   });
 
   const date = now.toLocaleDateString([], {
-    weekday: 'short',
-    month: 'short',
+    weekday: 'long',
+    month: 'long',
     day: 'numeric',
   });
 
+  const launcherPanel =
+    'rounded-lg border border-theme-border/50 bg-theme-sidebar/35 shadow-sm backdrop-blur-md'
+
   return (
     <div
-      className="relative isolate flex h-screen w-screen flex-col gap-3.5 overflow-hidden bg-theme-app bg-cover bg-center bg-no-repeat px-5 pb-3.5 pt-[18px] text-theme-text"
+      className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-theme-app bg-cover bg-center bg-no-repeat font-[system-ui,'Segoe_UI',-apple-system,sans-serif] text-theme-text antialiased"
       style={backgroundImageSrc ? { backgroundImage: `url("${backgroundImageSrc}")` } : undefined}
     >
       <Head>
@@ -834,21 +1320,23 @@ export default function Home() {
       </Head>
 
       {backgroundImageSrc ? (
-        <div className="pointer-events-none absolute inset-0 z-0 bg-theme-app/45 backdrop-blur-[2px]" />
-      ) : null}
+        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-theme-app/80 via-theme-app/65 to-theme-app/90 backdrop-blur-[1px]" />
+      ) : (
+        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-theme-app via-theme-app to-theme-sidebar/30" />
+      )}
 
-      <div className="relative z-10 grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4">
-        <div className="flex min-w-0 items-center justify-self-start">
+      <header className="relative z-10 mx-3 mt-2 flex min-h-[3.25rem] shrink-0 items-center gap-3 rounded-lg border border-theme-border/55 bg-theme-sidebar/50 px-3 py-2 shadow-sm backdrop-blur-md md:mx-4 md:mt-3 md:min-h-[3.5rem] md:gap-4 md:px-4">
+        <div className="flex min-w-0 flex-1 items-center justify-start md:flex-none">
           {logoImageSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoImageSrc} alt={shopName} className="max-h-16 w-auto max-w-[320px] object-contain" />
+            <img src={logoImageSrc} alt={shopName} className="max-h-14 w-auto max-w-[min(280px,40vw)] object-contain md:max-h-16" />
           ) : (
-            <div className="text-5xl font-bold text-theme-primary">{shopName}</div>
+            <div className="truncate text-2xl font-bold tracking-tight text-theme-primary md:text-3xl">{shopName}</div>
           )}
         </div>
-        <div className="flex w-full max-w-[560px] items-center gap-2">
+        <div className="flex min-w-0 max-w-md flex-1 items-center gap-2">
           <Input
-            className="h-[42px] min-w-0 flex-1 rounded-[10px]"
+            className="h-9 min-w-0 flex-1 rounded-md border border-theme-border/60 bg-theme-card/90 text-sm shadow-sm"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => {
@@ -857,36 +1345,54 @@ export default function Home() {
                 commitSearch()
               }
             }}
-            placeholder="Search"
+            placeholder="Search library…"
             aria-label="Search games"
           />
           <Button
             type="button"
             size="icon"
-            className="h-[42px] w-[42px] shrink-0 rounded-[10px]"
+            className="h-9 w-9 shrink-0 rounded-md"
             aria-label="Apply search"
             onClick={() => commitSearch()}
           >
             <Search className="h-4 w-4" />
           </Button>
         </div>
-
-        <div className="flex items-center justify-self-end">
-          <Button size='icon' className='!rounded-full bg-transparent text-theme-text' aria-label="Minimize" onClick={() => WindowMinimise()}>
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
+          {headerLinks.map((link) => (
+            <HeaderLinkButton key={link.id} link={link} />
+          ))}
+          <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="rounded-full text-theme-text hover:bg-theme-card/80"
+            aria-label="Minimize"
+            onClick={() => WindowMinimise()}
+          >
             <Minus className="h-4 w-4" />
           </Button>
-          <Button size='icon' className='!rounded-full bg-transparent text-theme-text hover:!bg-theme-error' aria-label="Close" onClick={() => Quit()}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="rounded-full text-theme-text hover:bg-theme-error/90 hover:text-theme-text"
+            aria-label="Close"
+            onClick={() => Quit()}
+          >
             <X className="h-4 w-4" />
           </Button>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className={`relative z-10 flex min-h-0 flex-1 gap-4 ${quickIsStacked ? 'flex-col' : ''}`}>
+      <div className={`relative z-10 mx-3 mb-2 mt-2 flex min-h-0 flex-1 gap-2 md:mx-4 md:gap-2 ${quickIsStacked ? 'flex-col' : ''}`}>
         {showQuickAccess && quickIsStackedTop && quickAccessGames.length > 0 ? (
           <div className="flex w-full justify-center">
             <aside className="flex flex-col items-center gap-2">
-              {showQuickAccessTitle ? <Badge className='!py-0.5 !border-none'>Quick Access</Badge> : null}
-              <div className='flex items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
+              {showQuickAccessTitle ? (
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
+              ) : null}
+              <div className={cn('flex items-center gap-2 p-2', launcherPanel)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -911,8 +1417,10 @@ export default function Home() {
         {showQuickAccess && quickIsLeft && quickAccessGames.length > 0 ? (
           <div className={`order-[-1] flex ${quickSlotAlignClass}`}>
             <aside className="flex flex-col items-center gap-2">
-              {showQuickAccessTitle ? <Badge className='!py-0.5 !border-none'>Quick Access</Badge> : null}
-              <div className='flex flex-col items-center gap-2.5 bg-theme-secondary/50 rounded-lg p-1 w-full'>
+              {showQuickAccessTitle ? (
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
+              ) : null}
+              <div className={cn('flex w-full flex-col items-center gap-2.5 p-2', launcherPanel)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -937,94 +1445,99 @@ export default function Home() {
         <div className="flex min-w-0 flex-1">
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
             {isCategoryTop(categoryPosition) ? (
-              <div className={`mb-3.5 flex flex-wrap gap-2.5 ${tabsPosClass(categoryPosition)}`}>
-                {tabItems.map((tab) => (
-                  <Button
-                    key={tab.key}
-                    type="button"
-                    variant={tab.key === activeTab ? 'default' : 'secondary'}
-                    size="sm"
-                    className={cn('', tab.key === activeTab ? '' : 'text-theme-muted')}
-                    onClick={() => setActiveTab(tab.key)}
-                  >
-                    <CategoryTabLabel tab={tab} tabAlign="bar" />
-                  </Button>
-                ))}
-              </div>
+              <LauncherCategoryTabs
+                tabItems={tabItems}
+                activeTab={activeTab}
+                onSelect={setActiveTab}
+                direction="row"
+                tabAlign="bar"
+                showIcons={showCategoryIcons}
+                justifyClass={tabsPosClass(categoryPosition)}
+              />
             ) : null}
 
             <div className="flex min-h-0 min-w-0 flex-1 gap-2.5">
               {isCategoryCenterLeft(categoryPosition) ? (
-                <div className="mb-0 flex flex-col flex-nowrap items-start justify-start gap-2.5">
-                  {tabItems.map((tab) => (
-                    <Button
-                      key={tab.key}
-                      type="button"
-                      variant={tab.key === activeTab ? 'default' : 'secondary'}
-                      size="sm"
-                      className={cn('w-full', tab.key === activeTab ? '' : 'text-theme-muted')}
-                      onClick={() => setActiveTab(tab.key)}
-                    >
-                      <CategoryTabLabel tab={tab} tabAlign="left" />
-                    </Button>
-                  ))}
+                <div className="mb-0 flex flex-col flex-nowrap items-start justify-start">
+                  <LauncherCategoryTabs
+                    tabItems={tabItems}
+                    activeTab={activeTab}
+                    onSelect={setActiveTab}
+                    direction="column"
+                    tabAlign="left"
+                    showIcons={showCategoryIcons}
+                  />
                 </div>
               ) : null}
 
-              <div className="flex min-h-0 min-w-0 flex-1 flex-wrap content-start overflow-auto">
-                {filteredGames.map((game) => (
-                  <Button
-                    key={game.id}
-                    type="button"
-                    variant="ghost"
-                    className={cn(
-                      "h-auto flex-col items-center gap-2 border-0 bg-transparent !p-0 m-1 text-inherit hover:bg-transparent rounded-md",
-                      // selectedGameId === game.id ? '!bg-theme-primary/20' : ''
-                    )}
-                    onClick={() => setSelectedGameId(game.id)}
-                    onDoubleClick={() => void handleLaunchGame(game)}
-                  >
-                    <GameArtwork game={game} iconSize={iconSize} tagsPosition={tagsPosition} showTags={showTags} />
-                    <div className={cn("max-w-40 text-center text-[13px] text-theme-text pb-2 text-wrap px-1",
-                      // selectedGameId == game.id && '!text-theme-primary'
-                    )}>{game.name}</div>
-                  </Button>
-                ))}
+              <div
+                className={cn(
+                  'grid min-h-0 min-w-0 flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 overflow-auto p-4',
+                  launcherPanel,
+                )}
+              >
+                {filteredGames.map((game) => {
+                  const selected = selectedGameId === game.id
+                  return (
+                    <Button
+                      key={game.id}
+                      type="button"
+                      variant="ghost"
+                      data-game-tile
+                      className={cn(
+                        'group relative overflow-hidden flex h-auto min-h-0 w-full min-w-0 max-w-[13rem] flex-col items-center justify-start gap-2 rounded-md border p-2.5 !m-0 justify-self-center',
+                        'text-inherit transition-colors duration-150',
+                        'border border-transparent bg-transparent hover:bg-theme-card/55',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-accent focus-visible:ring-offset-1 focus-visible:ring-offset-theme-app',
+                        selected &&
+                          'border-theme-border/60 bg-theme-primary/12 ring-1 ring-inset ring-theme-primary/40',
+                      )}
+                      onClick={() => setSelectedGameId(game.id)}
+                      onDoubleClick={() => void handleLaunchGame(game)}
+                    >
+                      <GameArtwork
+                        game={game}
+                        iconSize={iconSize}
+                        tagsPosition={tagsPosition}
+                        showTags={showTags}
+                      />
+                      <span
+                        className={cn(
+                          'line-clamp-2 w-full px-0.5 text-center text-xs font-normal leading-snug',
+                          selected ? 'text-theme-primary' : 'text-theme-text',
+                        )}
+                      >
+                        {game.name}
+                      </span>
+                    </Button>
+                  )
+                })}
               </div>
 
               {isCategoryCenterRight(categoryPosition) ? (
-                <div className="mb-0 flex flex-col flex-nowrap items-end justify-start gap-2.5">
-                  {tabItems.map((tab) => (
-                    <Button
-                      key={tab.key}
-                      type="button"
-                      variant={tab.key === activeTab ? 'default' : 'secondary'}
-                      size="sm"
-                      className={cn('w-full', tab.key === activeTab ? '' : 'text-theme-muted')}
-                      onClick={() => setActiveTab(tab.key)}
-                    >
-                      <CategoryTabLabel tab={tab} tabAlign="right" />
-                    </Button>
-                  ))}
+                <div className="mb-0 flex flex-col flex-nowrap items-end justify-start">
+                  <LauncherCategoryTabs
+                    tabItems={tabItems}
+                    activeTab={activeTab}
+                    onSelect={setActiveTab}
+                    direction="column"
+                    tabAlign="right"
+                    showIcons={showCategoryIcons}
+                  />
                 </div>
               ) : null}
             </div>
 
             {isCategoryBottom(categoryPosition) ? (
-              <div className={`mb-3.5 flex flex-wrap gap-2.5 ${tabsPosClass(categoryPosition)}`}>
-                {tabItems.map((tab) => (
-                  <Button
-                    key={tab.key}
-                    type="button"
-                    variant={tab.key === activeTab ? 'default' : 'secondary'}
-                    size="sm"
-                    className={cn('', tab.key === activeTab ? '' : 'text-theme-muted')}
-                    onClick={() => setActiveTab(tab.key)}
-                  >
-                    <CategoryTabLabel tab={tab} tabAlign="bar" />
-                  </Button>
-                ))}
-              </div>
+              <LauncherCategoryTabs
+                tabItems={tabItems}
+                activeTab={activeTab}
+                onSelect={setActiveTab}
+                direction="row"
+                tabAlign="bar"
+                showIcons={showCategoryIcons}
+                justifyClass={tabsPosClass(categoryPosition)}
+              />
             ) : null}
           </main>
         </div>
@@ -1032,8 +1545,8 @@ export default function Home() {
         {showQuickAccess && quickIsRight && quickAccessGames.length > 0 ? (
           <div className={`order-1 flex ${quickSlotAlignClass}`}>
             <aside className="flex flex-col items-center gap-2">
-              <Badge className='!py-0.5 !border-none'>Quick Access</Badge>
-              <div className='flex flex-col items-center gap-2 bg-theme-secondary/50 rounded-lg p-1 w-full'>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
+              <div className={cn('flex w-full flex-col items-center gap-2 p-2', launcherPanel)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1058,8 +1571,10 @@ export default function Home() {
         {showQuickAccess && quickIsStackedBottom && quickAccessGames.length > 0 ? (
           <div className="flex w-full justify-center">
             <aside className="flex flex-col items-center gap-2">
-              {showQuickAccessTitle ? <Badge className='!py-0.5 !border-none'>Quick Access</Badge> : null}
-              <div className='flex items-center gap-2 bg-theme-secondary/50 rounded-lg p-1'>
+              {showQuickAccessTitle ? (
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
+              ) : null}
+              <div className={cn('flex items-center gap-2 p-2', launcherPanel)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1083,8 +1598,8 @@ export default function Home() {
       </div>
 
       {showFooter ? (
-        <footer className="relative z-10 flex py-3 items-center gap-[18px] rounded-md bg-theme-sidebar/70 px-3">
-          <span className="text-sm text-theme-primary font-bold">{computerName}</span>
+        <footer className="relative z-10 mx-3 mb-2 flex items-center gap-3 rounded-lg border border-theme-border/50 bg-theme-sidebar/50 px-3 py-2.5 text-sm shadow-sm backdrop-blur-md md:mx-4">
+          <span className="shrink-0 text-sm font-bold text-theme-primary">{computerName}</span>
 
           {/* {windowsStartupStatus ? (
             <span className="shrink-0 text-xs text-theme-muted" title="HKCU\Software\Microsoft\Windows\CurrentVersion\Run\EZJRGameClient">
@@ -1099,7 +1614,7 @@ export default function Home() {
           </div>
 
           <span className="ml-auto text-theme-muted text-sm font-semibold">
-            {`${time} ${date}`}
+            {`${date} ⋅ ${time}`}
           </span>
         </footer>
       ) : null}

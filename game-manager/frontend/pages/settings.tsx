@@ -8,12 +8,14 @@ import { Switch } from '@/components/ui/switch'
 import { saveSettings, loadSettings, type Settings as StoredSettings } from '@/lib/settings-storage'
 import { hasWailsApp } from '@/lib/games-storage'
 import { yieldForNativeFileDialog } from '@/lib/yield-for-native-file-dialog'
+import { QuickAccessEditor } from '@/components/quick-access-editor'
 import {
   GetWindowsStartupStatus,
   ImportSettingsImage as ImportSettingsImageWails,
   PickImageFile as PickImageFileWails,
   SetLaunchOnWindowsStartup,
 } from '@/wailsjs/wailsjs/go/main/App'
+import { cn } from '@/lib/utils'
 
 export default function SettingsPage() {
   const [hydrated, setHydrated] = useState(false)
@@ -25,6 +27,7 @@ export default function SettingsPage() {
   const [categoryPosition, setCategoryPosition] = useState<'top-left' | 'top-center' | 'top-right'
     | 'bottom-left' | 'bottom-center' | 'bottom-right'
     | 'center-left' | 'center-right'>('top-left')
+  const [showCategoryIcons, setShowCategoryIcons] = useState(true)
   const [quickAccessPosition, setQuickAccessPosition] = useState<'top-left' | 'top-center' | 'top-right'
     | 'bottom-left' | 'bottom-center' | 'bottom-right'
     | 'center-left' | 'center-right'>('center-right')
@@ -68,6 +71,9 @@ export default function SettingsPage() {
         if (rawCategoryPos === 'top-left' || rawCategoryPos === 'top-center' || rawCategoryPos === 'top-right'
           || rawCategoryPos === 'bottom-left' || rawCategoryPos === 'bottom-center' || rawCategoryPos === 'bottom-right'
           || rawCategoryPos === 'center-left' || rawCategoryPos === 'center-right') setCategoryPosition(rawCategoryPos)
+
+        const rawShowCategoryIcons = (stored as Record<string, unknown>).showCategoryIcons
+        if (typeof rawShowCategoryIcons === 'boolean') setShowCategoryIcons(rawShowCategoryIcons)
 
         const rawQuickPos = (stored as Record<string, unknown>).quickAccessPosition
         if (rawQuickPos === 'center-left' || rawQuickPos === 'center-right') setQuickAccessPosition(rawQuickPos)
@@ -126,6 +132,7 @@ export default function SettingsPage() {
       whenLaunchingGame,
       gameIconSize,
       categoryPosition,
+      showCategoryIcons,
       quickAccessPosition,
       tagsPosition,
       showTags,
@@ -143,6 +150,7 @@ export default function SettingsPage() {
       whenLaunchingGame,
       gameIconSize,
       categoryPosition,
+      showCategoryIcons,
       quickAccessPosition,
       tagsPosition,
       showTags,
@@ -274,7 +282,15 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm text-theme-muted">Category Position</label>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="text-sm text-theme-muted">Category Position</label>
+                <div className="flex items-center space-x-1.5">
+                  <Switch checked={showCategoryIcons} onCheckedChange={setShowCategoryIcons} id="show-category-icons" />
+                  <label htmlFor="show-category-icons" className="text-sm text-theme-muted">
+                    Show category icons
+                  </label>
+                </div>
+              </div>
               <Select value={categoryPosition} onValueChange={(v) => setCategoryPosition(v as | 'top-left' | 'top-center' | 'top-right'
                 | 'bottom-left' | 'bottom-center' | 'bottom-right'
                 | 'center-left' | 'center-right'
@@ -289,8 +305,8 @@ export default function SettingsPage() {
                   <SelectItem value="bottom-left">Bottom Left</SelectItem>
                   <SelectItem value="bottom-center">Bottom Center</SelectItem>
                   <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                  <SelectItem value="center-left">Center Left</SelectItem>
-                  <SelectItem value="center-right">Center Right</SelectItem>
+                  <SelectItem value="center-left">Left</SelectItem>
+                  <SelectItem value="center-right">Right</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -330,6 +346,18 @@ export default function SettingsPage() {
                   <SelectItem value="center-right">Center Right</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className={cn("space-y-3 rounded-lg border border-theme-border bg-theme-card/40 p-4",
+              !showQuickAccess ? 'opacity-50 cursor-not-allowed' : '',
+            )}>
+              <div>
+                <div className="text-sm font-medium text-theme-text">Quick Access shortcuts</div>
+                <p className="mt-0.5 text-xs text-theme-muted">
+                  Pin and reorder games shown in the client launcher quick access strip.
+                </p>
+              </div>
+              <QuickAccessEditor embedded disabled={!showQuickAccess} />
             </div>
 
             <div className="space-y-1.5">

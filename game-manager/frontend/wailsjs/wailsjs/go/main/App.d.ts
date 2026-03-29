@@ -17,6 +17,8 @@ export function ImportCoverImage(arg1:string,arg2:number):Promise<string>;
 
 export function ImportGameIcon(arg1:string):Promise<string>;
 
+export function ImportLinkIcon(arg1:string,arg2:number):Promise<string>;
+
 export function ImportSettingsImage(arg1:string,arg2:string):Promise<string>;
 
 export function LoadCategoriesJSON():Promise<string>;
@@ -24,6 +26,8 @@ export function LoadCategoriesJSON():Promise<string>;
 export function LoadClientsJSON():Promise<string>;
 
 export function LoadGamesJSON():Promise<string>;
+
+export function LoadLinksJSON():Promise<string>;
 
 export function LoadQuickAccessJSON():Promise<string>;
 
@@ -42,6 +46,8 @@ export function SaveCategoriesJSON(arg1:string):Promise<void>;
 export function SaveClientsJSON(arg1:string):Promise<void>;
 
 export function SaveGamesJSON(arg1:string):Promise<void>;
+
+export function SaveLinksJSON(arg1:string):Promise<void>;
 
 export function SaveQuickAccessJSON(arg1:string):Promise<void>;
 

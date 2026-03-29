@@ -4,23 +4,32 @@ import { useEffect, useState, type PropsWithChildren } from 'react'
 import { cn } from '@/lib/utils'
 import { loadSettings, saveSettings, type ThemeAppearance as StoredAppearance } from '@/lib/settings-storage'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Moon, Sun } from 'lucide-react'
+import {
+  Gamepad2,
+  Layers,
+  Link2,
+  Moon,
+  Settings,
+  Sun,
+  Tags,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 
 type NavItem = {
   href: string
   label: string
+  icon: LucideIcon
 }
 
 const navItems: NavItem[] = [
-  { href: '/games', label: 'Games' },
-  { href: '/categories', label: 'Categories' },
-  { href: '/tags', label: 'Tags' },
-  { href: '/clients', label: 'Clients' },
-  { href: '/quick-access', label: 'Quick Access' },
-  { href: '/settings', label: 'Settings' },
-  { href: '/links', label: 'Links' },
+  { href: '/games', label: 'Games', icon: Gamepad2 },
+  { href: '/categories', label: 'Categories', icon: Layers },
+  { href: '/tags', label: 'Tags', icon: Tags },
+  { href: '/clients', label: 'Clients', icon: Users },
+  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/links', label: 'Links', icon: Link2 },
 ]
 
 type ThemeAppearance = 'dark' | 'light'
@@ -90,17 +99,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#F6F8FA',
-      sidebar: '#FFFFFF',
+      appBackground: '#F0F2F5',
+      sidebar: '#FAFBFC',
       card: '#FFFFFF',
-      border: '#D0D7DE',
-      text: '#1F2328',
-      mutedText: '#656D76',
-      secondaryText: '#57606A',
+      border: '#C4CDD6',
+      text: '#0D1117',
+      mutedText: '#4C5768',
+      secondaryText: '#444D5A',
       primary: '#0969DA',
       hover: '#0550AE',
-      secondary: '#EFF2F5',
-      secondaryHover: '#D8DEE4',
+      secondary: '#E8EEF5',
+      secondaryHover: '#D8E4F0',
       accent: '#0550AE',
       ...lightSem,
     },
@@ -124,17 +133,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#F3F8F7',
-      sidebar: '#FAFDFC',
+      appBackground: '#EDF2F1',
+      sidebar: '#F7FBFA',
       card: '#FFFFFF',
-      border: '#C5D5D2',
-      text: '#152320',
-      mutedText: '#5C6F6C',
-      secondaryText: '#3D524E',
+      border: '#A8BDB8',
+      text: '#0D1B18',
+      mutedText: '#3D524E',
+      secondaryText: '#2F4540',
       primary: '#0F766E',
       hover: '#0D5C56',
-      secondary: '#E6F4F2',
-      secondaryHover: '#D0E8E4',
+      secondary: '#DCEAE7',
+      secondaryHover: '#C8DCD6',
       accent: '#0E7490',
       ...lightSem,
     },
@@ -158,17 +167,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#FAFAFF',
-      sidebar: '#FFFFFF',
+      appBackground: '#F2F0FA',
+      sidebar: '#FBFAFF',
       card: '#FFFFFF',
-      border: '#D4D2E8',
-      text: '#1E1B2E',
-      mutedText: '#6B6680',
-      secondaryText: '#4A4558',
+      border: '#B8B3D0',
+      text: '#14121F',
+      mutedText: '#4A4558',
+      secondaryText: '#3D3849',
       primary: '#6D28D9',
       hover: '#5B21B6',
-      secondary: '#F3F0FF',
-      secondaryHover: '#E9E3FF',
+      secondary: '#E8E2F7',
+      secondaryHover: '#D8CFF0',
       accent: '#5B21B6',
       ...lightSem,
     },
@@ -192,17 +201,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#F5F1E8',
-      sidebar: '#EFE9DD',
-      card: '#FFFCF5',
-      border: '#C9C2B2',
-      text: '#3A3D2E',
-      mutedText: '#6B6658',
-      secondaryText: '#525047',
+      appBackground: '#EDE8DE',
+      sidebar: '#F5F0E6',
+      card: '#FFFDF8',
+      border: '#B0A896',
+      text: '#252820',
+      mutedText: '#4F4A3F',
+      secondaryText: '#454038',
       primary: '#C4154B',
       hover: '#A91242',
-      secondary: '#E8E4D9',
-      secondaryHover: '#D9D4C7',
+      secondary: '#E0DACE',
+      secondaryHover: '#D0C9BA',
       accent: '#0B7285',
       ...lightSem,
     },
@@ -226,17 +235,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#F7F5F2',
-      sidebar: '#EFEBE7',
-      card: '#FFFBF8',
-      border: '#CBC6C0',
-      text: '#2E2B28',
-      mutedText: '#6F6A66',
-      secondaryText: '#4F4A47',
+      appBackground: '#EEEBE6',
+      sidebar: '#F6F3EE',
+      card: '#FFFCF9',
+      border: '#B5AFA7',
+      text: '#1F1C19',
+      mutedText: '#4F4A45',
+      secondaryText: '#423D39',
       primary: '#6B5BC9',
       hover: '#5849B0',
-      secondary: '#ECE8E3',
-      secondaryHover: '#DED9D2',
+      secondary: '#E2DDD6',
+      secondaryHover: '#D2CCC3',
       accent: '#1E8A99',
       ...lightSem,
     },
@@ -260,17 +269,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#F0F2F5',
-      sidebar: '#E8EAEF',
+      appBackground: '#E8EAEF',
+      sidebar: '#F2F4F8',
       card: '#FFFFFF',
-      border: '#C5CAD5',
-      text: '#282A33',
-      mutedText: '#5E6470',
-      secondaryText: '#454A54',
+      border: '#A8AFBC',
+      text: '#161820',
+      mutedText: '#454A54',
+      secondaryText: '#3A3F48',
       primary: '#D97706',
       hover: '#B45309',
-      secondary: '#E4E7EE',
-      secondaryHover: '#D3D8E3',
+      secondary: '#D8DEE8',
+      secondaryHover: '#C8CFDC',
       accent: '#0284C7',
       ...lightSem,
     },
@@ -294,17 +303,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#FBF1C7',
-      sidebar: '#F2E5BC',
-      card: '#F9F5D7',
-      border: '#D5C4A1',
-      text: '#3C3836',
-      mutedText: '#665C54',
-      secondaryText: '#504945',
+      appBackground: '#F2E6C3',
+      sidebar: '#FAF0D2',
+      card: '#FFF9E6',
+      border: '#C4B28C',
+      text: '#282421',
+      mutedText: '#504945',
+      secondaryText: '#443E3A',
       primary: '#B57614',
       hover: '#9D6308',
-      secondary: '#EBDBB2',
-      secondaryHover: '#D5C4A1',
+      secondary: '#E5D9B4',
+      secondaryHover: '#D5C9A0',
       accent: '#427B58',
       ...lightSem,
     },
@@ -328,17 +337,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#F7F7FA',
-      sidebar: '#EFEFF5',
+      appBackground: '#EEEEF5',
+      sidebar: '#F6F6FC',
       card: '#FFFFFF',
-      border: '#D1D1E0',
-      text: '#343746',
-      mutedText: '#62677E',
-      secondaryText: '#4A4F63',
+      border: '#B4B4CC',
+      text: '#1E2130',
+      mutedText: '#4A4F63',
+      secondaryText: '#3D4255',
       primary: '#7C5ECF',
       hover: '#6B4BC4',
-      secondary: '#E8E8F2',
-      secondaryHover: '#D8D8E8',
+      secondary: '#DCDCF0',
+      secondaryHover: '#CCCCDE',
       accent: '#0891B2',
       ...lightSem,
     },
@@ -362,17 +371,17 @@ const themeFamilies: ThemeFamily[] = [
       ...darkSem,
     },
     light: {
-      appBackground: '#ECEFF4',
-      sidebar: '#E5E9F0',
+      appBackground: '#E2E6ED',
+      sidebar: '#EEF1F6',
       card: '#FFFFFF',
-      border: '#D8DEE9',
-      text: '#2E3440',
-      mutedText: '#4C566A',
-      secondaryText: '#434C5E',
+      border: '#B8C0D0',
+      text: '#1C2430',
+      mutedText: '#3D4759',
+      secondaryText: '#343E4E',
       primary: '#5E81AC',
       hover: '#4C6F99',
-      secondary: '#D8DEE9',
-      secondaryHover: '#C8D0E0',
+      secondary: '#D0D8E6',
+      secondaryHover: '#BFC8D8',
       accent: '#8FBCBB',
       ...lightSem,
     },
@@ -563,35 +572,42 @@ export function AppShell({ children }: PropsWithChildren) {
   }
 
   return (
-    <div className="wails-drag h-screen w-screen overflow-hidden bg-theme-app text-theme-text">
-      <Card className="flex h-full w-full flex-col gap-4 rounded-none border-none bg-theme-sidebar p-4">
-        <div className="wails-drag flex items-center gap-2">
-          <nav className="wails-no-drag flex flex-wrap gap-2">
-            {navItems.map((item) => {
-              const active = activePath === item.href
-              return (
-                <Button
-                  key={item.href}
-                  asChild
-                  variant={active ? 'default' : 'secondary'}
-                  className={cn(
-                    'rounded-md',
-                    active
-                      ? 'bg-theme-primary text-theme-text hover:bg-theme-primary-hover'
-                      : 'bg-theme-secondary text-theme-muted hover:bg-theme-secondary-hover'
-                  )}
-                >
-                  <Link href={item.href}>{item.label}</Link>
-                </Button>
-              )
-            })}
-          </nav>
-          <div className="wails-no-drag ml-auto flex items-center gap-2">
-            <label htmlFor="theme-picker" className="text-sm text-theme-muted">
+    <div className="flex h-screen w-screen overflow-hidden bg-theme-app text-theme-text">
+      <aside className="flex w-[220px] shrink-0 flex-col border-r border-theme-border bg-theme-sidebar shadow-[inset_-1px_0_0_rgba(0,0,0,0.04)]">
+        <div className="wails-drag border-b border-theme-border px-3 py-3">
+          <div className="text-[15px] font-semibold leading-tight tracking-tight text-theme-text">Game Manager</div>
+          <div className="mt-0.5 text-xs text-theme-muted">Library &amp; settings</div>
+        </div>
+
+        <nav className="wails-no-drag flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2" aria-label="Primary">
+          {navItems.map((item) => {
+            const active = activePath === item.href
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                  active
+                    ? 'bg-theme-secondary-hover font-medium text-theme-text'
+                    : 'text-theme-muted hover:bg-theme-secondary hover:text-theme-text',
+                )}
+              >
+                <Icon className="h-[18px] w-[18px] shrink-0 opacity-90" aria-hidden />
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
+
+        <div className="wails-no-drag space-y-2 border-t border-theme-border p-2">
+          <div className="px-1">
+            <label htmlFor="theme-picker" className="mb-1 block text-xs font-medium text-theme-muted">
               Theme
             </label>
             <Select value={familyId} onValueChange={onFamilyChange}>
-              <SelectTrigger className="h-8 min-w-36" aria-label="Theme">
+              <SelectTrigger id="theme-picker" className="h-9 w-full" aria-label="Theme">
                 <SelectValue placeholder="Select theme" />
               </SelectTrigger>
               <SelectContent className="min-w-36">
@@ -602,45 +618,43 @@ export function AppShell({ children }: PropsWithChildren) {
                 ))}
               </SelectContent>
             </Select>
-            <div
-              className="flex rounded-md border border-theme-border bg-theme-card p-0.5"
-              role="group"
-              aria-label="Color mode"
+          </div>
+          <div
+            className="flex rounded-md border border-theme-border bg-theme-card p-0.5"
+            role="group"
+            aria-label="Color mode"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-pressed={appearance === 'dark'}
+              onClick={() => appearance !== 'dark' && applyAndSave(familyId, 'dark')}
+              className={cn(
+                'h-8 flex-1 rounded px-2 text-xs text-theme-text hover:bg-theme-secondary-hover',
+                appearance === 'dark' && 'bg-theme-primary text-white hover:bg-theme-primary-hover',
+              )}
             >
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-pressed={appearance === 'dark'}
-                onClick={() => appearance !== 'dark' && applyAndSave(familyId, 'dark')}
-                className={cn(
-                  'h-7 rounded px-2.5 text-xs text-theme-text hover:bg-theme-secondary-hover',
-                  appearance === 'dark' && 'bg-theme-primary hover:bg-theme-primary-hover'
-                )}
-              >
-                <Moon className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-pressed={appearance === 'light'}
-                onClick={() => appearance !== 'light' && applyAndSave(familyId, 'light')}
-                className={cn(
-                  'h-7 rounded px-2.5 text-xs text-theme-text hover:bg-theme-secondary-hover',
-                  appearance === 'light' && 'bg-theme-primary hover:bg-theme-primary-hover'
-                )}
-              >
-                <Sun className="h-4 w-4" />
-              </Button>
-            </div>
+              <Moon className="mx-auto h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-pressed={appearance === 'light'}
+              onClick={() => appearance !== 'light' && applyAndSave(familyId, 'light')}
+              className={cn(
+                'h-8 flex-1 rounded px-2 text-xs text-theme-text hover:bg-theme-secondary-hover',
+                appearance === 'light' && 'bg-theme-primary text-white hover:bg-theme-primary-hover',
+              )}
+            >
+              <Sun className="mx-auto h-4 w-4" />
+            </Button>
           </div>
         </div>
+      </aside>
 
-        <div className="wails-no-drag min-h-0 flex-1">
-          {children}
-        </div>
-      </Card>
+      <main className="wails-no-drag min-h-0 min-w-0 flex-1 overflow-auto p-4">{children}</main>
     </div>
   )
 }

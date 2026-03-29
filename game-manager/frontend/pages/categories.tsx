@@ -9,6 +9,16 @@ import { loadCategories, saveCategories, type CategoryDefinition } from '@/lib/c
 import { GetDataDir, ReadImageFileDataURL } from '@/wailsjs/wailsjs/go/main/App'
 
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Table,
   TableBody,
   TableCell,
@@ -17,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowUpDown, Pencil, X, Trash2, Plus, Search } from 'lucide-react'
+import { Pencil, Trash2, Plus, Search, X } from 'lucide-react'
 
 function parseMulti(csv: string | undefined): string[] {
   return (csv ?? '')
@@ -140,6 +150,8 @@ export default function CategoriesPage() {
   const [addCategoryOpen, setAddCategoryOpen] = useState(false)
   const [editCategory, setEditCategory] = useState<CategoryDefinition | null>(null)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [deleteDialogNames, setDeleteDialogNames] = useState<string[] | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -166,11 +178,23 @@ export default function CategoriesPage() {
     return [...categories].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
   }, [categories])
 
-  const allRowsSelected = sortedCategories.length > 0 && selectedCategories.length === sortedCategories.length
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return sortedCategories
+    return sortedCategories.filter((c) => c.name.toLowerCase().includes(q))
+  }, [sortedCategories, searchQuery])
+
+  const visibleCategoryNames = useMemo(() => filteredCategories.map((c) => c.name), [filteredCategories])
+
+  const allRowsSelected =
+    filteredCategories.length > 0 && filteredCategories.every((c) => selectedCategories.includes(c.name))
 
   const setSelectAll = (checked: boolean) => {
-    if (checked) setSelectedCategories(sortedCategories.map((c) => c.name))
-    else setSelectedCategories([])
+    if (checked) {
+      setSelectedCategories((prev) => Array.from(new Set([...prev, ...visibleCategoryNames])))
+    } else {
+      setSelectedCategories((prev) => prev.filter((name) => !visibleCategoryNames.includes(name)))
+    }
   }
 
   const setCategorySelected = (category: string, checked: boolean) => {
@@ -191,10 +215,12 @@ export default function CategoriesPage() {
     await saveGames(updated)
   }
 
-  const removeCategoryFromGames = async (value: string) => {
+  const removeCategoriesFromGames = async (values: string[]) => {
+    if (values.length === 0) return
+    const toRemove = new Set(values)
     const games = await loadGames()
     const updated = games.map((g) => {
-      const parts = parseMulti(g.category).filter((p) => p !== value)
+      const parts = parseMulti(g.category).filter((p) => !toRemove.has(p))
       return { ...g, category: joinMulti(parts) }
     })
     await saveGames(updated)
@@ -242,15 +268,26 @@ export default function CategoriesPage() {
     await saveCategories(nextCategories)
   }
 
-  const handleDelete = async (value: string) => {
-    const ok = window.confirm(`Delete category "${value}" from list and remove it from games?`)
-    if (!ok) return
-
-    const nextCategories = categories.filter((c) => c.name !== value)
-    setCategories(nextCategories)
-    await removeCategoryFromGames(value)
-    await saveCategories(nextCategories)
+  const openDeleteDialog = (names: string[]) => {
+    if (names.length === 0) return
+    setDeleteDialogNames(names)
   }
+
+  const confirmDeleteCategories = async () => {
+    if (!deleteDialogNames || deleteDialogNames.length === 0) return
+    const toRemove = new Set(deleteDialogNames)
+    const nextCategories = categories.filter((c) => !toRemove.has(c.name))
+    setCategories(nextCategories)
+    setSelectedCategories((prev) => prev.filter((name) => !toRemove.has(name)))
+    await removeCategoriesFromGames(deleteDialogNames)
+    await saveCategories(nextCategories)
+    setDeleteDialogNames(null)
+  }
+
+  const selectedDeletableNames = useMemo(
+    () => selectedCategories.filter((name) => categories.some((c) => c.name === name)),
+    [categories, selectedCategories]
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -260,14 +297,35 @@ export default function CategoriesPage() {
       <div className="wails-no-drag ml-auto flex w-full items-center gap-2 mb-4">
         <div className="flex w-[360px] items-center gap-2">
           <Input
-            placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search categories"
             className="border-theme-border bg-theme-card text-theme-text placeholder:text-theme-muted"
+            aria-label="Search categories"
           />
-          <Button variant="secondary" className="bg-theme-secondary hover:bg-theme-secondary-hover">
-            <Search className="text-theme-text" />
+          <Button
+            type="button"
+            variant="secondary"
+            className="bg-theme-secondary hover:bg-theme-secondary-hover"
+            onClick={() => setSearchQuery('')}
+            disabled={!searchQuery}
+            aria-label="Clear search"
+          >
+            {searchQuery ? <X className="text-theme-text" /> : <Search className="text-theme-text" />}
           </Button>
         </div>
         <div className="flex gap-2 ml-auto">
+          {selectedDeletableNames.length > 0 && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="bg-theme-secondary text-theme-text hover:bg-theme-error/85"
+              onClick={() => openDeleteDialog(selectedDeletableNames)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete selected ({selectedDeletableNames.length})
+            </Button>
+          )}
           <Button
             type="button"
             className="bg-theme-primary text-theme-text hover:bg-theme-primary-hover"
@@ -306,7 +364,7 @@ export default function CategoriesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedCategories.map((category) => (
+              {filteredCategories.map((category) => (
                 <TableRow key={category.name} className="hover:bg-theme-card">
                   <TableCell>
                     <Checkbox
@@ -337,7 +395,7 @@ export default function CategoriesPage() {
                         size="icon"
                         variant="secondary"
                         className="bg-theme-secondary text-theme-text hover:bg-theme-error"
-                        onClick={() => handleDelete(category.name)}
+                        onClick={() => openDeleteDialog([category.name])}
                         aria-label={`Delete ${category.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -367,7 +425,44 @@ export default function CategoriesPage() {
           void handleSaveCategory(category, iconRelPath, iconDataUrl)
         }
       />
-    </div >
+
+      <AlertDialog
+        open={deleteDialogNames !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialogNames(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteDialogNames && deleteDialogNames.length === 1
+                ? 'Delete this category?'
+                : 'Delete categories?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              {deleteDialogNames && deleteDialogNames.length === 1
+                ? `"${deleteDialogNames[0]}" will be removed from the list and stripped from all games. This cannot be undone.`
+                : deleteDialogNames
+                  ? `${deleteDialogNames.length} categories will be removed from the list and stripped from all games. This cannot be undone.`
+                  : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-theme-error text-theme-text hover:bg-theme-error/90"
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmDeleteCategories()
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   )
 }
 

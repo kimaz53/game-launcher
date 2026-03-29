@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -10,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { Game } from '@/lib/game'
@@ -29,6 +31,7 @@ import {
   ImportGameIcon,
 } from '@/wailsjs/wailsjs/go/main/App'
 import { Check, ChevronsUpDown, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type AddGameDialogProps = {
   open: boolean
@@ -36,6 +39,22 @@ type AddGameDialogProps = {
   onSaved?: () => void
   mode?: 'add' | 'edit'
   initialGame?: Game
+}
+
+function normalizeClientIp(ip: string): string {
+  return ip.trim().toLowerCase()
+}
+
+function dedupeClientIps(ips: string[]): string[] {
+  const seen: Record<string, true> = {}
+  const out: string[] = []
+  for (const v of ips) {
+    const k = normalizeClientIp(v)
+    if (!k || seen[k]) continue
+    seen[k] = true
+    out.push(k)
+  }
+  return out
 }
 
 export function AddGameDialog({
@@ -74,9 +93,46 @@ export function AddGameDialog({
   const [customIconRelPath, setCustomIconRelPath] = useState('')
   const [customIconDataUrl, setCustomIconDataUrl] = useState('')
   const [iconSourcePath, setIconSourcePath] = useState('')
+  const [coverImgReady, setCoverImgReady] = useState(false)
+  const [iconImgReady, setIconImgReady] = useState(false)
+
+  const editCoverRelPath =
+    mode === 'edit' && initialGame?.coverRelPath?.trim() ? initialGame.coverRelPath.trim() : ''
+  const editExeIconRelPath =
+    mode === 'edit' && initialGame?.exeIconRelPath?.trim()
+      ? initialGame.exeIconRelPath.trim()
+      : ''
+
+  const coverDiskQuery = useQuery({
+    queryKey: ['wails', 'GetCoverDataURL', 'cover', initialGame?.id, editCoverRelPath] as const,
+    queryFn: async () => (await GetCoverDataURL(editCoverRelPath)) || '',
+    enabled: open && mode === 'edit' && !!editCoverRelPath && hasWailsApp(),
+    staleTime: Infinity,
+    gcTime: 15 * 60 * 1000,
+  })
+
+  const iconDiskQuery = useQuery({
+    queryKey: ['wails', 'GetCoverDataURL', 'exeIcon', initialGame?.id, editExeIconRelPath] as const,
+    queryFn: async () => (await GetCoverDataURL(editExeIconRelPath)) || '',
+    enabled: open && mode === 'edit' && !!editExeIconRelPath && hasWailsApp(),
+    staleTime: Infinity,
+    gcTime: 15 * 60 * 1000,
+  })
+
+  const coverDisplayUrl = (coverPreviewUrl || coverDiskQuery.data || '').trim()
+  const iconDisplayUrl = (customIconDataUrl || iconDiskQuery.data || '').trim()
+
+  const coverDiskLoading =
+    open && mode === 'edit' && !!editCoverRelPath && !coverPreviewUrl && coverDiskQuery.isPending
+  const iconDiskLoading =
+    open && mode === 'edit' && !!editExeIconRelPath && !customIconDataUrl && iconDiskQuery.isPending
+
+  const coverSkeletonVisible = coverDiskLoading || (!!coverDisplayUrl && !coverImgReady)
+  const iconSkeletonVisible = iconDiskLoading || (!!iconDisplayUrl && !iconImgReady)
 
   useEffect(() => {
     if (!open) return
+
     if (mode === 'edit' && initialGame) {
       setName(initialGame.name)
       setExePath(initialGame.exePath)
@@ -95,22 +151,12 @@ export function AddGameDialog({
           .filter(Boolean)
       )
       setTagSelection(initialGame.tags ?? [])
-      setAllowedClientIps(initialGame.allowedClientIps ?? [])
+      setAllowedClientIps(dedupeClientIps(initialGame.allowedClientIps ?? []))
       setCoverSourcePath('')
       setCoverPreviewUrl('')
-
-      if (initialGame.coverRelPath && hasWailsApp()) {
-        void GetCoverDataURL(initialGame.coverRelPath).then((dataUrl) => {
-          setCoverPreviewUrl(dataUrl || '')
-        })
-      }
-
-      if (initialGame.exeIconRelPath && hasWailsApp()) {
-        void GetCoverDataURL(initialGame.exeIconRelPath).then((dataUrl) => {
-          setCustomIconDataUrl(dataUrl || '')
-        })
-      }
-
+      setIconSourcePath('')
+      setCustomIconRelPath('')
+      setCustomIconDataUrl('')
       return
     }
 
@@ -128,6 +174,14 @@ export function AddGameDialog({
     setCustomIconDataUrl('')
     setIconSourcePath('')
   }, [open, mode, initialGame])
+
+  useEffect(() => {
+    setCoverImgReady(false)
+  }, [coverDisplayUrl])
+
+  useEffect(() => {
+    setIconImgReady(false)
+  }, [iconDisplayUrl])
 
   useEffect(() => {
     if (!open) return
@@ -268,6 +322,10 @@ export function AddGameDialog({
     const existing = await loadGames()
     const id = mode === 'edit' && initialGame ? initialGame.id : nextGameId(existing)
 
+    const exeTrim = exePath.trim()
+    const exeUnchanged =
+      mode === 'edit' && !!initialGame && exeTrim === initialGame.exePath.trim()
+
     let coverRelPath: string | undefined =
       mode === 'edit' && initialGame ? initialGame.coverRelPath : undefined
 
@@ -289,27 +347,42 @@ export function AddGameDialog({
       } catch {
         /* still save game without icon */
       }
-    } else if (exePath.trim() && hasWailsApp()) {
-      try {
-        const extracted = await ExtractExecutableIcon(exePath.trim())
-        if (extracted) iconRelPath = extracted
-      } catch {
-        /* still save game without icon */
+    } else if (exeTrim && hasWailsApp()) {
+      const shouldExtractIcon = !exeUnchanged
+      if (shouldExtractIcon) {
+        try {
+          const extracted = await ExtractExecutableIcon(exeTrim)
+          if (extracted) iconRelPath = extracted
+        } catch {
+          /* still save game without icon */
+        }
       }
     }
 
-    const iconRelToSave = iconRelPath?.trim() || undefined
+    const iconRelToSave =
+      iconRelPath?.trim() ||
+      (exeUnchanged && !iconSourcePath.trim() ? initialGame?.exeIconRelPath?.trim() : undefined) ||
+      undefined
+
+    const platform =
+      exeUnchanged && initialGame ? initialGame.platform : guessPlatform(exePath)
+    const status: Game['status'] =
+      exeUnchanged && initialGame
+        ? initialGame.status
+        : exeTrim
+          ? 'Installed'
+          : 'Not Installed'
 
     const game: Game = {
       id,
       name: name.trim(),
-      exePath: exePath.trim(),
+      exePath: exeTrim,
       args: args.trim(),
       category: categorySelection.join(', '),
       group: groupSelection.join(', '),
       tags: tagSelection,
-      platform: guessPlatform(exePath),
-      status: exePath.trim() ? 'Installed' : 'Not Installed',
+      platform,
+      status,
       coverRelPath,
       exeIconRelPath: iconRelToSave ? iconRelToSave : undefined,
       allowedClientIps,
@@ -328,12 +401,20 @@ export function AddGameDialog({
     'min-h-[132px] w-full rounded-lg border border-theme-border bg-theme-app px-2 py-1.5 text-sm text-theme-text outline-none focus:border-theme-accent'
 
   const allowedClientLabel = (ip: string) => {
-    const found = clientOptions.find((c) => c.ip === ip)
-    return found ? `${found.name} (${ip})` : ip
+    const key = normalizeClientIp(ip)
+    const found = clientOptions.find((c) => normalizeClientIp(c.ip) === key)
+    return found ? `${found.name} (${found.ip})` : ip
   }
 
   const toggleAllowedClient = (ip: string) => {
-    setAllowedClientIps((prev) => (prev.includes(ip) ? prev.filter((v) => v !== ip) : [...prev, ip]))
+    const key = normalizeClientIp(ip)
+    setAllowedClientIps((prev) => (prev.includes(key) ? prev.filter((v) => v !== key) : [...prev, key]))
+  }
+
+  const selectAllowedClientsByType = (clientType: 'vip' | 'non-vip') => {
+    setAllowedClientIps(
+      dedupeClientIps(clientOptions.filter((c) => c.type === clientType).map((c) => c.ip)),
+    )
   }
 
   const toggleCategory = (cat: string) => {
@@ -388,13 +469,38 @@ export function AddGameDialog({
 
         <div className="wails-no-drag flex flex-col gap-6 sm:flex-row">
           <div className="flex w-full shrink-0 flex-col gap-3 sm:w-44">
-            <div className="flex aspect-[3/4] w-full items-center justify-center rounded-xl border border-theme-border bg-theme-card text-center text-sm text-theme-muted">
-              {coverPreviewUrl ? (
+            <div className="relative w-full aspect-[3/4] shrink-0 overflow-hidden rounded-xl border border-theme-border bg-theme-card">
+              <div
+                className={cn(
+                  'pointer-events-none absolute inset-0 flex items-center justify-center text-center text-sm text-theme-muted',
+                  coverDisplayUrl || coverSkeletonVisible ? 'z-0' : 'z-[1]',
+                )}
+                aria-hidden={!!coverDisplayUrl || coverSkeletonVisible}
+              >
+                <span className={cn((coverDisplayUrl || coverSkeletonVisible) && 'sr-only')}>
+                  No Image
+                </span>
+              </div>
+              {coverSkeletonVisible ? (
+                <Skeleton
+                  className="pointer-events-none absolute inset-0 z-[2] rounded-xl"
+                  aria-hidden
+                />
+              ) : null}
+              {coverDisplayUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={coverPreviewUrl} alt="" className="h-full w-full rounded-xl object-cover" />
-              ) : (
-                <span>No Image</span>
-              )}
+                <img
+                  key={coverDisplayUrl}
+                  src={coverDisplayUrl}
+                  alt=""
+                  className={cn(
+                    'absolute inset-0 z-[1] h-full w-full rounded-xl object-cover transition-opacity duration-200',
+                    coverImgReady ? 'opacity-100' : 'opacity-0',
+                  )}
+                  onLoad={() => setCoverImgReady(true)}
+                  onError={() => setCoverImgReady(true)}
+                />
+              ) : null}
             </div>
             <Button
               type="button"
@@ -409,13 +515,43 @@ export function AddGameDialog({
             <div className="space-y-1.5">
               <span className="text-sm text-theme-muted">Game Icon</span>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-md border border-theme-border bg-theme-card">
-                  {customIconDataUrl ? (
+                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-theme-border bg-theme-card">
+                  <div
+                    className={cn(
+                      'pointer-events-none absolute inset-0 flex items-center justify-center',
+                      iconDisplayUrl || iconSkeletonVisible ? 'z-0' : 'z-[1]',
+                    )}
+                    aria-hidden={!!iconDisplayUrl || iconSkeletonVisible}
+                  >
+                    <span
+                      className={cn(
+                        'text-sm font-semibold text-theme-muted',
+                        (iconDisplayUrl || iconSkeletonVisible) && 'sr-only',
+                      )}
+                    >
+                      ?
+                    </span>
+                  </div>
+                  {iconSkeletonVisible ? (
+                    <Skeleton
+                      className="pointer-events-none absolute inset-0 z-[2] rounded-md"
+                      aria-hidden
+                    />
+                  ) : null}
+                  {iconDisplayUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={customIconDataUrl} alt="Game icon preview" className="h-10 w-10 rounded-md" />
-                  ) : (
-                    <span className="text-sm font-semibold text-theme-muted">?</span>
-                  )}
+                    <img
+                      key={iconDisplayUrl}
+                      src={iconDisplayUrl}
+                      alt="Game icon preview"
+                      className={cn(
+                        'absolute inset-0 z-[1] h-full w-full rounded-md object-cover transition-opacity duration-200',
+                        iconImgReady ? 'opacity-100' : 'opacity-0',
+                      )}
+                      onLoad={() => setIconImgReady(true)}
+                      onError={() => setIconImgReady(true)}
+                    />
+                  ) : null}
                 </div>
                 <Button
                   type="button"
@@ -596,7 +732,29 @@ export function AddGameDialog({
             </div>
 
             <div className="space-y-1.5">
-              <span className="text-sm text-theme-muted">Allowed Clients</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-theme-muted">Allowed Clients</span>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 bg-theme-secondary text-xs text-theme-text hover:bg-theme-secondary-hover"
+                    onClick={() => selectAllowedClientsByType('vip')}
+                  >
+                    VIP only
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 bg-theme-secondary text-xs text-theme-text hover:bg-theme-secondary-hover"
+                    onClick={() => selectAllowedClientsByType('non-vip')}
+                  >
+                    Non-VIP only
+                  </Button>
+                </div>
+              </div>
               <Popover open={clientsOpen} onOpenChange={setClientsOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -619,7 +777,7 @@ export function AddGameDialog({
                       <CommandEmpty>No clients found.</CommandEmpty>
                       <CommandGroup>
                         {clientOptions.map((client) => {
-                          const checked = allowedClientIps.includes(client.ip)
+                          const checked = allowedClientIps.includes(normalizeClientIp(client.ip))
                           return (
                             <CommandItem
                               key={client.ip}
@@ -643,7 +801,7 @@ export function AddGameDialog({
               {allowedClientIps.length > 0 && (
                 <div className="flex flex-wrap gap-2 pt-1">
                   {allowedClientIps.map((ip) => {
-                    const client = clientOptions.find((c) => c.ip === ip)
+                    const client = clientOptions.find((c) => normalizeClientIp(c.ip) === ip)
                     return (
                       <button
                         key={ip}

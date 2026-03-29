@@ -644,6 +644,140 @@ func (a *App) SaveQuickAccessJSON(payload string) error {
 	return a.saveIntArrayJSON("quick-access.json", payload)
 }
 
+// LinkEntry is a user-defined shortcut opened in the system browser from the game client header.
+type LinkEntry struct {
+	ID    int    `json:"id"`
+	Label string `json:"label"`
+	URL   string `json:"url"`
+	// Icon is optional: relative path under the portable data dir (e.g. icons/link-1.png).
+	Icon string `json:"icon,omitempty"`
+}
+
+// LoadLinksJSON reads links.json from the portable data directory, or returns "[]".
+func (a *App) LoadLinksJSON() (string, error) {
+	dataDir, err := a.portableDataDir()
+	if err != nil {
+		return "[]", err
+	}
+	path := filepath.Join(dataDir, "links.json")
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "[]", nil
+	}
+	if err != nil {
+		return "[]", err
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		return "[]", nil
+	}
+	var decoded []LinkEntry
+	if err := json.Unmarshal(b, &decoded); err != nil {
+		return "[]", nil
+	}
+	out, err := json.Marshal(decoded)
+	if err != nil {
+		return "[]", err
+	}
+	return string(out), nil
+}
+
+// SaveLinksJSON writes links.json as a JSON array of {id,label,url,icon?}.
+func (a *App) SaveLinksJSON(payload string) error {
+	var decoded []LinkEntry
+	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
+		return fmt.Errorf("invalid links json: %w", err)
+	}
+	seen := map[int]struct{}{}
+	nextID := 1
+	out := make([]LinkEntry, 0, len(decoded))
+	for _, e := range decoded {
+		label := strings.TrimSpace(e.Label)
+		rawURL := strings.TrimSpace(e.URL)
+		if label == "" || rawURL == "" {
+			continue
+		}
+		lower := strings.ToLower(rawURL)
+		if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
+			return fmt.Errorf("link %q: url must start with http:// or https://", label)
+		}
+		id := e.ID
+		_, dup := seen[id]
+		if id <= 0 || dup {
+			for {
+				if _, ok := seen[nextID]; !ok {
+					break
+				}
+				nextID++
+			}
+			id = nextID
+			nextID++
+		}
+		seen[id] = struct{}{}
+		icon := strings.TrimSpace(e.Icon)
+		out = append(out, LinkEntry{ID: id, Label: label, URL: rawURL, Icon: icon})
+	}
+	dataDir, err := a.portableDataDir()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dataDir, "links.json")
+	b, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0o644)
+}
+
+// ImportLinkIcon copies an image into data/icons/link-{linkID}{ext}. Returns a path relative to data/.
+func (a *App) ImportLinkIcon(sourcePath string, linkID int) (string, error) {
+	sourcePath = strings.TrimSpace(sourcePath)
+	if sourcePath == "" {
+		return "", nil
+	}
+	if linkID <= 0 {
+		return "", fmt.Errorf("invalid link id")
+	}
+	abs, err := filepath.Abs(sourcePath)
+	if err != nil {
+		abs = sourcePath
+	}
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(abs)))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+	default:
+		ext = ".png"
+	}
+
+	dataDir, err := a.portableDataDir()
+	if err != nil {
+		return "", err
+	}
+	iconsDir := filepath.Join(dataDir, "icons")
+	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+		return "", err
+	}
+
+	rel := filepath.ToSlash(filepath.Join("icons", fmt.Sprintf("link-%d%s", linkID, ext)))
+	dest := filepath.Join(dataDir, filepath.FromSlash(rel))
+
+	src, err := os.Open(abs)
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dest)
+	if err != nil {
+		return "", err
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", err
+	}
+	return rel, nil
+}
+
 type Settings struct {
 	ThemeFamilyID   string `json:"themeFamilyId,omitempty"`
 	ThemeAppearance string `json:"themeAppearance,omitempty"` // "dark" | "light"
@@ -830,6 +964,8 @@ func (a *App) PickImageFile() string {
 
 // ExtractExecutableIcon extracts an icon from an executable and saves it to data/icons/{hash}.png.
 // Returns the path relative to data/ (e.g. "icons/{hash}.png"). It is deterministic per sourcePath.
+// It reads the largest RT_ICON frame from PE resources (native resolution / PNG-compressed icons),
+// then falls back to PowerShell only if that path fails (e.g. .lnk or unusual binaries).
 func (a *App) ExtractExecutableIcon(sourcePath string) (string, error) {
 	sourcePath = strings.TrimSpace(sourcePath)
 	if sourcePath == "" {
@@ -841,7 +977,8 @@ func (a *App) ExtractExecutableIcon(sourcePath string) (string, error) {
 		abs = sourcePath
 	}
 
-	sum := md5.Sum([]byte(abs))
+	// Version suffix invalidates older upscaled 256×256 caches from ExtractAssociatedIcon.
+	sum := md5.Sum([]byte(abs + "|rticon:v1"))
 	hash := hex.EncodeToString(sum[:])
 
 	dataDir, err := a.portableDataDir()
@@ -857,8 +994,15 @@ func (a *App) ExtractExecutableIcon(sourcePath string) (string, error) {
 		return rel, nil
 	}
 
-	// Use PowerShell + System.Drawing to convert the icon to PNG at a high quality.
-	// This avoids heavy Windows HICON->PNG conversion code.
+	pngBytes, extractErr := extractExeIconPNG(abs)
+	if extractErr == nil && len(pngBytes) > 0 {
+		if err := os.WriteFile(dest, pngBytes, 0o644); err != nil {
+			return "", fmt.Errorf("write icon png: %w", err)
+		}
+		return rel, nil
+	}
+
+	// Fallback: associated icon + upscale (shortcuts and edge cases).
 	safePath := strings.ReplaceAll(abs, `'`, `''`)
 	safeOut := strings.ReplaceAll(dest, `'`, `''`)
 
@@ -883,7 +1027,9 @@ $bmp.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png);
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		// Return a readable error; caller can ignore if icon extraction fails.
+		if extractErr != nil {
+			return "", fmt.Errorf("extract icon failed: %w (pe: %v): %s", err, extractErr, strings.TrimSpace(string(out)))
+		}
 		return "", fmt.Errorf("extract icon failed: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 

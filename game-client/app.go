@@ -1,10 +1,12 @@
 package main
 
 import (
-	"encoding/base64"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,6 +147,52 @@ func (a *App) LoadManagerQuickAccessJSON() (string, error) {
 
 func (a *App) LoadManagerSettingsJSON() (string, error) {
 	return a.loadJSONOrDefault("settings.json", "{}")
+}
+
+func (a *App) LoadManagerClientsJSON() (string, error) {
+	return a.loadJSONOrDefault("clients.json", "[]")
+}
+
+// LoadManagerLinksJSON reads links.json from the shared manager data directory (same as games), or "[]".
+func (a *App) LoadManagerLinksJSON() (string, error) {
+	return a.loadJSONOrDefault("links.json", "[]")
+}
+
+// GetClientIdentityJSON returns {"hostname":"...","ipv4":["..."]} for matching games allowedClientIps to clients.json entries.
+func (a *App) GetClientIdentityJSON() string {
+	host, _ := os.Hostname()
+	host = strings.TrimSpace(host)
+
+	var ips []string
+	addrs, err := net.InterfaceAddrs()
+	if err == nil {
+		seen := map[string]struct{}{}
+		for _, addr := range addrs {
+			ipnet, ok := addr.(*net.IPNet)
+			if !ok || ipnet.IP.IsLoopback() {
+				continue
+			}
+			v4 := ipnet.IP.To4()
+			if v4 == nil {
+				continue
+			}
+			s := v4.String()
+			if _, dupe := seen[s]; dupe {
+				continue
+			}
+			seen[s] = struct{}{}
+			ips = append(ips, s)
+		}
+	}
+	type identity struct {
+		Hostname string   `json:"hostname"`
+		IPv4     []string `json:"ipv4"`
+	}
+	b, err := json.Marshal(identity{Hostname: host, IPv4: ips})
+	if err != nil {
+		return `{"hostname":"","ipv4":[]}`
+	}
+	return string(b)
 }
 
 func (a *App) ReadManagerImageDataURL(relPath string) string {
