@@ -17,6 +17,149 @@ import {
 } from '@/wailsjs/wailsjs/go/main/App'
 import { cn } from '@/lib/utils'
 
+/**
+ * Stored as `{edge}-{secondary}`:
+ * - TOP/BOTTOM → `left` | `center` | `right` (e.g. `top-left`)
+ * - LEFT/RIGHT → `upper` | `center` | `lower` (e.g. `left-center`)
+ * Migrates older `top-upper`-style and corner keys.
+ */
+type LayoutEdge = 'top' | 'bottom' | 'left' | 'right'
+
+const LEGACY_CORNER_TO_UNIFIED: Record<string, string> = {
+  'top-left': 'top-upper',
+  'top-center': 'top-center',
+  'top-right': 'top-lower',
+  'bottom-left': 'bottom-upper',
+  'bottom-center': 'bottom-center',
+  'bottom-right': 'bottom-lower',
+  'center-left': 'left-center',
+  'center-right': 'right-center',
+}
+
+const OLD_HORIZONTAL_AXIS: Record<string, string> = {
+  'top-upper': 'top-left',
+  'top-lower': 'top-right',
+  'bottom-upper': 'bottom-left',
+  'bottom-lower': 'bottom-right',
+}
+
+function tryCanonicalLayoutPosition(raw: string | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null
+  let v = String(raw).trim().toLowerCase()
+  if (LEGACY_CORNER_TO_UNIFIED[v]) v = LEGACY_CORNER_TO_UNIFIED[v]
+  if (OLD_HORIZONTAL_AXIS[v]) v = OLD_HORIZONTAL_AXIS[v]
+  if (/^(top|bottom)-(left|center|right)$/.test(v)) return v
+  if (/^(left|right)-(upper|center|lower)$/.test(v)) return v
+  return null
+}
+
+function migrateLayoutPosition(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  return tryCanonicalLayoutPosition(raw)
+}
+
+function normalizeLayoutPositionValue(value: string | undefined, fallback: string): string {
+  return tryCanonicalLayoutPosition(value) ?? tryCanonicalLayoutPosition(fallback) ?? 'top-left'
+}
+
+function parseEdgeSecondary(combined: string, fallback: string): { edge: LayoutEdge; secondary: string } {
+  const migrated = normalizeLayoutPositionValue(combined, fallback)
+  const [e, s] = migrated.split('-')
+  const edge = (['top', 'bottom', 'left', 'right'].includes(e) ? e : 'top') as LayoutEdge
+  if (edge === 'top' || edge === 'bottom') {
+    const secondary = ['left', 'center', 'right'].includes(s) ? s : 'left'
+    return { edge, secondary }
+  }
+  const secondary = ['upper', 'center', 'lower'].includes(s) ? s : 'center'
+  return { edge, secondary }
+}
+
+function combineLayoutPosition(edge: LayoutEdge, secondary: string): string {
+  return `${edge}-${secondary}`
+}
+
+function mapSecondaryWhenEdgeChanges(prevEdge: LayoutEdge, nextEdge: LayoutEdge, secondary: string): string {
+  const prevH = prevEdge === 'top' || prevEdge === 'bottom'
+  const nextH = nextEdge === 'top' || nextEdge === 'bottom'
+  if (prevH === nextH) return secondary
+  if (prevH && !nextH) {
+    const m: Record<string, string> = { left: 'upper', center: 'center', right: 'lower' }
+    return m[secondary] ?? 'center'
+  }
+  const m: Record<string, string> = { upper: 'left', center: 'center', lower: 'right' }
+  return m[secondary] ?? 'center'
+}
+
+function EdgeAlignSelect({
+  idPrefix,
+  value,
+  onChange,
+  disabled,
+}: {
+  idPrefix: string
+  value: string
+  onChange: (next: string) => void
+  disabled?: boolean
+}) {
+  const { edge, secondary } = parseEdgeSecondary(value, 'top-left')
+  const isHorizontalEdge = edge === 'top' || edge === 'bottom'
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Select
+        value={edge}
+        onValueChange={(v) => {
+          const nextEdge = v as LayoutEdge
+          const nextSecondary = mapSecondaryWhenEdgeChanges(edge, nextEdge, secondary)
+          onChange(combineLayoutPosition(nextEdge, nextSecondary))
+        }}
+        disabled={disabled}
+      >
+        <SelectTrigger id={`${idPrefix}-edge`} className="min-w-[8.5rem]">
+          <SelectValue placeholder="Edge" />
+        </SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem value="top">Top</SelectItem>
+          <SelectItem value="bottom">Bottom</SelectItem>
+          <SelectItem value="left">Left</SelectItem>
+          <SelectItem value="right">Right</SelectItem>
+        </SelectContent>
+      </Select>
+      {isHorizontalEdge ? (
+        <Select
+          value={secondary}
+          onValueChange={(v) => onChange(combineLayoutPosition(edge, v))}
+          disabled={disabled}
+        >
+          <SelectTrigger id={`${idPrefix}-h`} className="min-w-[8.5rem]">
+            <SelectValue placeholder="Align" />
+          </SelectTrigger>
+          <SelectContent align="end">
+            <SelectItem value="left">Left</SelectItem>
+            <SelectItem value="center">Center</SelectItem>
+            <SelectItem value="right">Right</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : (
+        <Select
+          value={secondary}
+          onValueChange={(v) => onChange(combineLayoutPosition(edge, v))}
+          disabled={disabled}
+        >
+          <SelectTrigger id={`${idPrefix}-v`} className="min-w-[8.5rem]">
+            <SelectValue placeholder="Align" />
+          </SelectTrigger>
+          <SelectContent align="end">
+            <SelectItem value="upper">Upper</SelectItem>
+            <SelectItem value="center">Center</SelectItem>
+            <SelectItem value="lower">Lower</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const [hydrated, setHydrated] = useState(false)
 
@@ -24,16 +167,10 @@ export default function SettingsPage() {
   const [gameOrder, setGameOrder] = useState<'A-Z' | 'Z-A'>('A-Z')
   const [whenLaunchingGame, setWhenLaunchingGame] = useState<'minimized' | 'normal' | 'exit'>('normal')
   const [gameIconSize, setGameIconSize] = useState<'small' | 'medium' | 'large'>('medium')
-  const [categoryPosition, setCategoryPosition] = useState<'top-left' | 'top-center' | 'top-right'
-    | 'bottom-left' | 'bottom-center' | 'bottom-right'
-    | 'center-left' | 'center-right'>('top-left')
+  const [categoryPosition, setCategoryPosition] = useState('top-left')
   const [showCategoryIcons, setShowCategoryIcons] = useState(true)
-  const [quickAccessPosition, setQuickAccessPosition] = useState<'top-left' | 'top-center' | 'top-right'
-    | 'bottom-left' | 'bottom-center' | 'bottom-right'
-    | 'center-left' | 'center-right'>('center-right')
-  const [tagsPosition, setTagsPosition] = useState<'top-left' | 'top-center' | 'top-right'
-    | 'bottom-left' | 'bottom-center' | 'bottom-right'
-    | 'center-left' | 'center-right'>('top-left')
+  const [quickAccessPosition, setQuickAccessPosition] = useState('right-center')
+  const [tagsPosition, setTagsPosition] = useState('top-left')
   const [showTags, setShowTags] = useState(true)
   const [showQuickAccess, setShowQuickAccess] = useState(true)
   const [showQuickAccessTitle, setShowQuickAccessTitle] = useState(true)
@@ -68,20 +205,19 @@ export default function SettingsPage() {
         if (rawIconSize === 'small' || rawIconSize === 'medium' || rawIconSize === 'large') setGameIconSize(rawIconSize)
 
         const rawCategoryPos = (stored as Record<string, unknown>).categoryPosition
-        if (rawCategoryPos === 'top-left' || rawCategoryPos === 'top-center' || rawCategoryPos === 'top-right'
-          || rawCategoryPos === 'bottom-left' || rawCategoryPos === 'bottom-center' || rawCategoryPos === 'bottom-right'
-          || rawCategoryPos === 'center-left' || rawCategoryPos === 'center-right') setCategoryPosition(rawCategoryPos)
+        const catM = migrateLayoutPosition(rawCategoryPos)
+        if (catM) setCategoryPosition(catM)
 
         const rawShowCategoryIcons = (stored as Record<string, unknown>).showCategoryIcons
         if (typeof rawShowCategoryIcons === 'boolean') setShowCategoryIcons(rawShowCategoryIcons)
 
         const rawQuickPos = (stored as Record<string, unknown>).quickAccessPosition
-        if (rawQuickPos === 'center-left' || rawQuickPos === 'center-right') setQuickAccessPosition(rawQuickPos)
+        const quickM = migrateLayoutPosition(rawQuickPos)
+        if (quickM) setQuickAccessPosition(quickM)
 
         const rawTagsPos = (stored as Record<string, unknown>).tagsPosition
-        if (rawTagsPos === 'top-left' || rawTagsPos === 'top-center' || rawTagsPos === 'top-right'
-          || rawTagsPos === 'bottom-left' || rawTagsPos === 'bottom-center' || rawTagsPos === 'bottom-right'
-          || rawTagsPos === 'center-left' || rawTagsPos === 'center-right') setTagsPosition(rawTagsPos)
+        const tagsM = migrateLayoutPosition(rawTagsPos)
+        if (tagsM) setTagsPosition(tagsM)
 
         const rawShowTags = (stored as Record<string, unknown>).showTags
         if (typeof rawShowTags === 'boolean') setShowTags(rawShowTags)
@@ -291,24 +427,16 @@ export default function SettingsPage() {
                   </label>
                 </div>
               </div>
-              <Select value={categoryPosition} onValueChange={(v) => setCategoryPosition(v as | 'top-left' | 'top-center' | 'top-right'
-                | 'bottom-left' | 'bottom-center' | 'bottom-right'
-                | 'center-left' | 'center-right'
-              )}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category position" />
-                </SelectTrigger>
-                <SelectContent align='end'>
-                  <SelectItem value="top-left">Top Left</SelectItem>
-                  <SelectItem value="top-center">Top Center</SelectItem>
-                  <SelectItem value="top-right">Top Right</SelectItem>
-                  <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                  <SelectItem value="bottom-center">Bottom Center</SelectItem>
-                  <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                  <SelectItem value="center-left">Left</SelectItem>
-                  <SelectItem value="center-right">Right</SelectItem>
-                </SelectContent>
-              </Select>
+              <EdgeAlignSelect
+                idPrefix="category-pos"
+                value={categoryPosition}
+                onChange={setCategoryPosition}
+              />
+              <p className="text-xs leading-relaxed text-theme-muted">
+                Top/Bottom: <span className="text-theme-text/90">Left / Center / Right</span> aligns the horizontal tab strip;{' '}
+                <span className="text-theme-text/90">Right</span> lists categories from right to left (ALL stays at the screen edge). Left/Right rails:{' '}
+                <span className="text-theme-text/90">Upper / Center / Lower</span> along the side. When tabs don&apos;t fit, the client shows a More menu.
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -325,27 +453,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
-              <Select
+              <EdgeAlignSelect
+                idPrefix="quick-pos"
                 value={quickAccessPosition}
-                onValueChange={(v) => setQuickAccessPosition(v as | 'top-left' | 'top-center' | 'top-right'
-                  | 'bottom-left' | 'bottom-center' | 'bottom-right'
-                  | 'center-left' | 'center-right')}
+                onChange={setQuickAccessPosition}
                 disabled={!showQuickAccess}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select quick access position" />
-                </SelectTrigger>
-                <SelectContent align='end'>
-                  <SelectItem value="top-left">Top Left</SelectItem>
-                  <SelectItem value="top-center">Top Center</SelectItem>
-                  <SelectItem value="top-right">Top Right</SelectItem>
-                  <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                  <SelectItem value="bottom-center">Bottom Center</SelectItem>
-                  <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                  <SelectItem value="center-left">Center Left</SelectItem>
-                  <SelectItem value="center-right">Center Right</SelectItem>
-                </SelectContent>
-              </Select>
+              />
             </div>
 
             <div className={cn("space-y-3 rounded-lg border border-theme-border bg-theme-card/40 p-4",
@@ -386,26 +499,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
-              <Select value={tagsPosition} onValueChange={(v) => setTagsPosition(v as | 'top-left' | 'top-center' | 'top-right'
-                | 'bottom-left' | 'bottom-center' | 'bottom-right'
-                | 'center-left' | 'center-right'
-              )}
+              <EdgeAlignSelect
+                idPrefix="tags-pos"
+                value={tagsPosition}
+                onChange={setTagsPosition}
                 disabled={!showTags}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tags position" />
-                </SelectTrigger>
-                <SelectContent align='end'>
-                  <SelectItem value="top-left">Top Left</SelectItem>
-                  <SelectItem value="top-center">Top Center</SelectItem>
-                  <SelectItem value="top-right">Top Right</SelectItem>
-                  <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                  <SelectItem value="bottom-center">Bottom Center</SelectItem>
-                  <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                  <SelectItem value="center-left">Center Left</SelectItem>
-                  <SelectItem value="center-right">Center Right</SelectItem>
-                </SelectContent>
-              </Select>
+              />
             </div>
 
             <div className="space-y-2 pt-2">

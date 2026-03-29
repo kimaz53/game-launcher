@@ -8,6 +8,7 @@ import {
   Gamepad2,
   LayoutGrid,
   Minus,
+  ArrowRight,
   Search,
   X,
 } from 'lucide-react'
@@ -22,6 +23,13 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog'
 import { Badge } from '../components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu'
 import { Input } from '../components/ui/input'
 import {
   GetClientIdentityJSON,
@@ -274,29 +282,32 @@ type ThemePalette = {
   muted: string
   primary: string
   primaryHover: string
+  accent: string
 }
 
 const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
   'vs-blue': {
     dark: {
-      appBackground: '#08143a',
-      panel: '#10254a',
-      panelAlt: '#27384f',
-      border: '#27385a',
-      text: '#ecf3ff',
-      muted: '#a8b7d9',
+      appBackground: '#0D1117',
+      panel: '#161B22',
+      panelAlt: '#1F2937',
+      border: '#30363D',
+      text: '#F0F6FC',
+      muted: '#9BA7B4',
       primary: '#3B82F6',
       primaryHover: '#2563EB',
+      accent: '#0EA5E9',
     },
     light: {
-      appBackground: '#E8EEF8',
-      panel: '#DCE8FC',
-      panelAlt: '#CFDFF8',
-      border: '#9BB0D6',
-      text: '#0D1528',
-      muted: '#3D4F6E',
-      primary: '#2563EB',
-      primaryHover: '#1D4ED8',
+      appBackground: '#F0F2F5',
+      panel: '#FAFBFC',
+      panelAlt: '#FFFFFF',
+      border: '#C4CDD6',
+      text: '#0D1117',
+      muted: '#4C5768',
+      primary: '#0969DA',
+      primaryHover: '#0550AE',
+      accent: '#0550AE',
     },
   },
   'vs-teal': {
@@ -309,16 +320,18 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#93A6B3',
       primary: '#14B8A6',
       primaryHover: '#0D9488',
+      accent: '#22D3EE',
     },
     light: {
       appBackground: '#EDF2F1',
-      panel: '#F5FAF9',
+      panel: '#F7FBFA',
       panelAlt: '#FFFFFF',
       border: '#A8BDB8',
       text: '#0D1B18',
       muted: '#3D524E',
       primary: '#0F766E',
       primaryHover: '#0D5C56',
+      accent: '#0E7490',
     },
   },
   'vs-purple': {
@@ -331,16 +344,18 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#A8A3C2',
       primary: '#8B5CF6',
       primaryHover: '#7C3AED',
+      accent: '#A78BFA',
     },
     light: {
       appBackground: '#F2F0FA',
-      panel: '#FFFFFF',
+      panel: '#FBFAFF',
       panelAlt: '#FFFFFF',
       border: '#B8B3D0',
       text: '#14121F',
       muted: '#4A4558',
       primary: '#6D28D9',
       primaryHover: '#5B21B6',
+      accent: '#5B21B6',
     },
   },
   'monokai-classic': {
@@ -353,6 +368,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#A6A28C',
       primary: '#F92672',
       primaryHover: '#E91E63',
+      accent: '#66D9EF',
     },
     light: {
       appBackground: '#EDE8DE',
@@ -363,6 +379,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#4F4A3F',
       primary: '#C4154B',
       primaryHover: '#A91242',
+      accent: '#0B7285',
     },
   },
   'monokai-pro': {
@@ -375,6 +392,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#A9A7A9',
       primary: '#AB9DF2',
       primaryHover: '#9A8AE6',
+      accent: '#78DCE8',
     },
     light: {
       appBackground: '#EEEBE6',
@@ -385,6 +403,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#4F4A45',
       primary: '#6B5BC9',
       primaryHover: '#5849B0',
+      accent: '#1E8A99',
     },
   },
   'monokai-octagon': {
@@ -397,6 +416,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#A4A7B4',
       primary: '#FFB86C',
       primaryHover: '#FFA94D',
+      accent: '#8BE9FD',
     },
     light: {
       appBackground: '#E8EAEF',
@@ -407,6 +427,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#454A54',
       primary: '#D97706',
       primaryHover: '#B45309',
+      accent: '#0284C7',
     },
   },
   gruvbox: {
@@ -419,6 +440,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#BDAE93',
       primary: '#D79921',
       primaryHover: '#B57614',
+      accent: '#83A598',
     },
     light: {
       appBackground: '#F2E6C3',
@@ -429,28 +451,31 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#504945',
       primary: '#B57614',
       primaryHover: '#9D6308',
+      accent: '#427B58',
     },
   },
   dracula: {
     dark: {
       appBackground: '#282A36',
-      panel: '#303447',
-      panelAlt: '#343746',
+      panel: '#21222C',
+      panelAlt: '#303447',
       border: '#44475A',
       text: '#F8F8F2',
       muted: '#B6B9C8',
       primary: '#BD93F9',
       primaryHover: '#A67DE8',
+      accent: '#8BE9FD',
     },
     light: {
       appBackground: '#EEEEF5',
-      panel: '#E8EAF5',
-      panelAlt: '#E0E3F0',
+      panel: '#F6F6FC',
+      panelAlt: '#FFFFFF',
       border: '#B4B4CC',
       text: '#1E2130',
       muted: '#4A4F63',
       primary: '#7C5ECF',
       primaryHover: '#6B4BC4',
+      accent: '#0891B2',
     },
   },
   nord: {
@@ -463,6 +488,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#D8DEE9',
       primary: '#5E81AC',
       primaryHover: '#4C6F99',
+      accent: '#88C0D0',
     },
     light: {
       appBackground: '#E2E6ED',
@@ -473,6 +499,7 @@ const palettes: Record<string, { dark: ThemePalette; light: ThemePalette }> = {
       muted: '#3D4759',
       primary: '#5E81AC',
       primaryHover: '#4C6F99',
+      accent: '#8FBCBB',
     },
   },
 }
@@ -505,7 +532,7 @@ function applyTheme(themeFamilyId?: string, appearance?: ThemeAppearance) {
   root.setProperty('--color-hovered-primary-button', hexToRgbChannels(palette.primaryHover))
   root.setProperty('--color-secondary-button', hexToRgbChannels(palette.panelAlt))
   root.setProperty('--color-hovered-secondary-button', hexToRgbChannels(palette.panel))
-  root.setProperty('--color-secondary-accent', hexToRgbChannels(palette.primary))
+  root.setProperty('--color-secondary-accent', hexToRgbChannels(palette.accent))
   root.setProperty('--color-secondary-text', hexToRgbChannels(palette.muted))
   root.setProperty('--gc-app-bg', palette.appBackground)
   root.setProperty('--gc-panel', palette.panel)
@@ -517,50 +544,77 @@ function applyTheme(themeFamilyId?: string, appearance?: ThemeAppearance) {
   root.setProperty('--gc-primary-hover', palette.primaryHover)
 }
 
-function normalizePos(value: string | undefined, fallback: string): string {
-  const v = (value ?? '').trim().toLowerCase()
-  switch (v) {
-    case 'top-left':
-    case 'top-center':
-    case 'top-right':
-    case 'bottom-left':
-    case 'bottom-center':
-    case 'bottom-right':
-    case 'center-left':
-    case 'center-right':
-      return v
+/**
+ * TOP/BOTTOM use `left|center|right`; LEFT/RIGHT use `upper|center|lower`.
+ * Migrates legacy corner keys and old `top-upper`-style values.
+ */
+const LEGACY_CORNER_TO_UNIFIED: Record<string, string> = {
+  'top-left': 'top-upper',
+  'top-center': 'top-center',
+  'top-right': 'top-lower',
+  'bottom-left': 'bottom-upper',
+  'bottom-center': 'bottom-center',
+  'bottom-right': 'bottom-lower',
+  'center-left': 'left-center',
+  'center-right': 'right-center',
+}
+
+const OLD_HORIZONTAL_AXIS: Record<string, string> = {
+  'top-upper': 'top-left',
+  'top-lower': 'top-right',
+  'bottom-upper': 'bottom-left',
+  'bottom-lower': 'bottom-right',
+}
+
+type LayoutEdge = 'top' | 'bottom' | 'left' | 'right'
+
+function tryCanonicalLayoutPosition(raw: string | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null
+  let v = String(raw).trim().toLowerCase()
+  if (LEGACY_CORNER_TO_UNIFIED[v]) v = LEGACY_CORNER_TO_UNIFIED[v]
+  if (OLD_HORIZONTAL_AXIS[v]) v = OLD_HORIZONTAL_AXIS[v]
+  if (/^(top|bottom)-(left|center|right)$/.test(v)) return v
+  if (/^(left|right)-(upper|center|lower)$/.test(v)) return v
+  return null
+}
+
+function normalizeLayoutPosition(value: string | undefined, fallback: string): string {
+  return tryCanonicalLayoutPosition(value) ?? tryCanonicalLayoutPosition(fallback) ?? 'top-left'
+}
+
+function parseLayoutPosition(value: string | undefined, fallback: string): { edge: LayoutEdge; sub: string } {
+  const normalized = normalizeLayoutPosition(value, fallback)
+  const [e, s] = normalized.split('-')
+  const edge = (['top', 'bottom', 'left', 'right'].includes(e) ? e : 'top') as LayoutEdge
+  if (edge === 'top' || edge === 'bottom') {
+    const sub = ['left', 'center', 'right'].includes(s) ? s : 'left'
+    return { edge, sub }
+  }
+  const sub = ['upper', 'center', 'lower'].includes(s) ? s : 'center'
+  return { edge, sub }
+}
+
+function categoryRailMainAlignClass(sub: string): string {
+  switch (sub) {
+    case 'center':
+      return 'justify-center'
+    case 'lower':
+      return 'justify-end'
     default:
-      return fallback
+      return 'justify-start'
   }
 }
 
-function tabsPosClass(pos: string): string {
-  switch (pos) {
-    case 'top-center': return 'justify-center'
-    case 'top-right': return 'justify-end'
-    case 'center-left': return 'flex-col flex-nowrap items-start justify-start'
-    case 'center-right': return 'flex-col flex-nowrap items-end justify-start'
-    case 'bottom-left': return 'justify-start'
-    case 'bottom-center': return 'justify-center'
-    case 'bottom-right': return 'justify-end'
-    default: return 'justify-start'
+/** Outer flex alignment for top/bottom strips (e.g. quick access row), not category tab pills. */
+function horizontalStripJustifyClass(sub: string): string {
+  switch (sub) {
+    case 'center':
+      return 'justify-center'
+    case 'right':
+      return 'justify-end'
+    default:
+      return 'justify-start'
   }
-}
-
-function isCategoryTop(pos: string): boolean {
-  return pos.startsWith('top')
-}
-
-function isCategoryBottom(pos: string): boolean {
-  return pos.startsWith('bottom')
-}
-
-function isCategoryCenterLeft(pos: string): boolean {
-  return pos === 'center-left'
-}
-
-function isCategoryCenterRight(pos: string): boolean {
-  return pos === 'center-right'
 }
 
 function categoryTabRowClass(tabAlign: 'bar' | 'left' | 'right'): string {
@@ -648,6 +702,7 @@ function LauncherCategoryTabs({
   tabAlign,
   showIcons,
   justifyClass,
+  barAlign = 'left',
 }: {
   tabItems: CategoryTabItem[]
   activeTab: string
@@ -655,19 +710,23 @@ function LauncherCategoryTabs({
   direction: 'row' | 'column'
   tabAlign: 'bar' | 'left' | 'right'
   showIcons: boolean
+  /** Legacy: column rail outer flex alignment (optional). */
   justifyClass?: string
+  /** Horizontal bar only: tab strip alignment; `right` uses right-to-left order. */
+  barAlign?: 'left' | 'center' | 'right'
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const moreWrapRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [tabsOverflow, setTabsOverflow] = useState(false)
 
   const updateScrollHints = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
     const maxScroll = el.scrollWidth - el.clientWidth
-    if (maxScroll <= 2) {
+    const overflow = maxScroll > 2
+    setTabsOverflow(overflow)
+    if (!overflow) {
       setCanScrollLeft(false)
       setCanScrollRight(false)
       return
@@ -678,28 +737,24 @@ function LauncherCategoryTabs({
 
   useLayoutEffect(() => {
     updateScrollHints()
-  }, [tabItems, updateScrollHints])
+    const t = window.setTimeout(() => updateScrollHints(), 0)
+    return () => window.clearTimeout(t)
+  }, [tabItems, barAlign, updateScrollHints])
 
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
     const ro = new ResizeObserver(() => updateScrollHints())
     ro.observe(el)
+    for (const child of Array.from(el.children)) {
+      ro.observe(child as Element)
+    }
     el.addEventListener('scroll', updateScrollHints, { passive: true })
     return () => {
       ro.disconnect()
       el.removeEventListener('scroll', updateScrollHints)
     }
-  }, [tabItems, updateScrollHints])
-
-  useEffect(() => {
-    if (!moreOpen) return
-    const onDoc = (e: MouseEvent) => {
-      if (moreWrapRef.current && !moreWrapRef.current.contains(e.target as Node)) setMoreOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [moreOpen])
+  }, [tabItems, barAlign, updateScrollHints])
 
   useEffect(() => {
     if (direction !== 'row') return
@@ -715,17 +770,14 @@ function LauncherCategoryTabs({
   }
 
   const panel = cn(
-    'rounded-lg border border-theme-border/50 bg-theme-sidebar/40 shadow-sm backdrop-blur-md',
-    'p-0.5',
+    'rounded-xl border border-white/10 bg-theme-sidebar/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl',
+    'p-1',
     direction === 'column' && 'min-w-[10.5rem] max-w-[16rem]',
   )
 
-  const listClass =
-    direction === 'row'
-      ? 'inline-flex min-w-0 flex-nowrap items-stretch gap-1'
-      : 'flex w-full flex-col gap-1'
+  const columnListClass = 'flex w-full flex-col gap-1'
 
-  const tabButton = (tab: CategoryTabItem) => {
+  const tabPills = tabItems.map((tab) => {
     const active = activeTab === tab.key
     return (
       <button
@@ -736,20 +788,20 @@ function LauncherCategoryTabs({
         aria-selected={active}
         onClick={() => onSelect(tab.key)}
         className={cn(
-          'inline-flex min-h-8 shrink-0 items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-normal transition-colors duration-150',
+          'inline-flex min-h-8 shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200',
           'border border-transparent',
           direction === 'column' && 'w-full',
           tabAlign === 'right' && direction === 'column' && 'justify-end text-right',
           tabAlign === 'left' && direction === 'column' && 'justify-start text-left',
           active
-            ? 'bg-theme-primary text-theme-text shadow-sm'
-            : 'text-theme-muted hover:bg-theme-card/70 hover:text-theme-text',
+            ? 'bg-theme-primary text-theme-text shadow-[0_0_0_1px_rgba(255,255,255,0.12)] ring-2 ring-theme-primary/35'
+            : 'text-theme-muted hover:bg-theme-card/60 hover:text-theme-text',
         )}
       >
         <CategoryTabLabel tab={tab} tabAlign={tabAlign} showIcons={showIcons} />
       </button>
     )
-  }
+  })
 
   if (direction === 'column') {
     return (
@@ -757,22 +809,23 @@ function LauncherCategoryTabs({
         <div
           className={cn(
             panel,
-            listClass,
+            columnListClass,
             'max-h-[min(52vh,28rem)] overflow-y-auto overflow-x-hidden [scrollbar-width:thin]',
           )}
           role="tablist"
           aria-label="Game categories"
         >
-          {tabItems.map((tab) => tabButton(tab))}
+          {tabPills}
         </div>
       </div>
     )
   }
 
   const showArrows = canScrollLeft || canScrollRight
+  const align = barAlign
 
   return (
-    <div className={cn('mb-3 flex min-w-0 flex-nowrap items-center gap-1', justifyClass)}>
+    <div className="mb-3 flex min-w-0 flex-nowrap items-center justify-start gap-1">
       {showArrows ? (
         <button
           type="button"
@@ -780,7 +833,7 @@ function LauncherCategoryTabs({
           disabled={!canScrollLeft}
           onClick={() => scrollByDir(-200)}
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-theme-border/50 bg-theme-card/60 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-theme-card/50 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
             !canScrollLeft && 'pointer-events-none opacity-30',
           )}
         >
@@ -792,13 +845,31 @@ function LauncherCategoryTabs({
         ref={scrollRef}
         className={cn(
           panel,
-          listClass,
           'min-w-0 flex-1 overflow-x-auto overflow-y-hidden scroll-smooth [scrollbar-width:thin]',
         )}
         role="tablist"
         aria-label="Game categories"
       >
-        {tabItems.map((tab) => tabButton(tab))}
+        {align === 'left' ? (
+          <div className="inline-flex min-w-0 flex-nowrap items-stretch gap-1">{tabPills}</div>
+        ) : (
+          <div
+            className={cn(
+              'flex min-w-full flex-nowrap items-stretch',
+              align === 'center' && 'justify-center',
+              align === 'right' && 'justify-end',
+            )}
+          >
+            <div
+              className={cn(
+                'inline-flex min-w-0 flex-nowrap items-stretch gap-1',
+                align === 'right' && 'flex-row-reverse',
+              )}
+            >
+              {tabPills}
+            </div>
+          </div>
+        )}
       </div>
 
       {showArrows ? (
@@ -808,7 +879,7 @@ function LauncherCategoryTabs({
           disabled={!canScrollRight}
           onClick={() => scrollByDir(200)}
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-theme-border/50 bg-theme-card/60 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-theme-card/50 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
             !canScrollRight && 'pointer-events-none opacity-30',
           )}
         >
@@ -816,71 +887,60 @@ function LauncherCategoryTabs({
         </button>
       ) : null}
 
-      {tabItems.length > 1 ? (
-        <div ref={moreWrapRef} className="relative shrink-0">
-          <button
-            type="button"
-            aria-expanded={moreOpen}
-            aria-haspopup="listbox"
-            onClick={() => setMoreOpen((o) => !o)}
-            className="flex h-8 items-center gap-1 rounded-md border border-theme-border/50 bg-theme-card/70 px-2 text-xs text-theme-muted shadow-sm backdrop-blur-md hover:bg-theme-card hover:text-theme-text"
-            title="All categories"
-          >
-            <span className="hidden sm:inline">More</span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', moreOpen && 'rotate-180')} />
-          </button>
-          {moreOpen ? (
-            <div
-              role="listbox"
-              aria-label="All categories"
-              className="absolute right-0 z-50 mt-1 max-h-64 min-w-[12rem] overflow-y-auto rounded-lg border border-theme-border/60 bg-theme-sidebar/95 py-1 shadow-lg backdrop-blur-md"
+      {tabsOverflow && tabItems.length > 1 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-theme-card/55 px-2 text-xs text-theme-muted shadow-sm backdrop-blur-md outline-none hover:bg-theme-card/80 hover:text-theme-text focus-visible:ring-2 focus-visible:ring-theme-primary/40"
+              title="All categories"
+              aria-label="More categories"
             >
-              {tabItems.map((tab) => {
-                const active = activeTab === tab.key
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    onClick={() => {
-                      onSelect(tab.key)
-                      setMoreOpen(false)
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2 px-3 py-2 text-left text-xs',
-                      active ? 'bg-theme-primary/90 text-theme-text' : 'text-theme-text hover:bg-theme-card/80',
-                    )}
-                  >
-                    <CategoryTabLabel tab={tab} tabAlign="left" showIcons={showIcons} />
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
-        </div>
+              <span className="hidden sm:inline">More</span>
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[14rem]">
+            <DropdownMenuRadioGroup value={activeTab} onValueChange={onSelect}>
+              {tabItems.map((tab) => (
+                <DropdownMenuRadioItem key={tab.key} value={tab.key}>
+                  <CategoryTabLabel tab={tab} tabAlign="left" showIcons={showIcons} />
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
     </div>
   )
 }
 
 function tagPosClass(pos: string): string {
-  switch (pos) {
-    case 'top-center': return 'top-1.5 left-1/2 -translate-x-1/2 justify-center'
-    case 'top-right': return 'top-1.5 right-1.5 justify-end'
-    case 'center-left': return 'top-1/2 left-1.5 -translate-y-1/2 justify-start'
-    case 'center-right': return 'top-1/2 right-1.5 -translate-y-1/2 justify-end'
-    case 'bottom-left': return 'bottom-1.5 left-1.5 justify-start'
-    case 'bottom-center': return 'bottom-1.5 left-1/2 -translate-x-1/2 justify-center'
-    case 'bottom-right': return 'bottom-1.5 right-1.5 justify-end'
-    default: return 'top-1.5 left-1.5 justify-start'
+  const { edge, sub } = parseLayoutPosition(pos, 'top-left')
+  if (edge === 'top') {
+    if (sub === 'center') return 'top-2 left-1/2 -translate-x-1/2 justify-center'
+    if (sub === 'right') return 'top-2 right-2 justify-end'
+    return 'top-2 left-2 justify-start'
   }
+  if (edge === 'bottom') {
+    if (sub === 'center') return 'bottom-2 left-1/2 -translate-x-1/2 justify-center'
+    if (sub === 'right') return 'bottom-2 right-2 justify-end'
+    return 'bottom-2 left-2 justify-start'
+  }
+  if (edge === 'left') {
+    if (sub === 'center') return 'left-2 top-1/2 -translate-y-1/2 justify-start'
+    if (sub === 'lower') return 'left-2 bottom-2 justify-start'
+    return 'left-2 top-2 justify-start'
+  }
+  if (sub === 'center') return 'right-2 top-1/2 -translate-y-1/2 justify-end'
+  if (sub === 'lower') return 'right-2 bottom-2 justify-end'
+  return 'right-2 top-2 justify-end'
 }
 
 function iconOnlyImageClass(iconSize: IconSize): string {
   switch (iconSize) {
     case 'small':
-      return 'h-[3.125rem] w-[3.125rem] object-fill'
+      return 'h-full w-full object-contain object-center'
     case 'large':
       return 'object-contain'
     default:
@@ -938,13 +998,13 @@ function GameArtwork({
 
   const cls =
     iconSize === 'small'
-      ? 'h-[3.125rem] w-[3.125rem] !bg-transparent !border-none'
+      ? 'aspect-square size-[3.125rem] shrink-0 !bg-transparent !border-none'
       : iconSize === 'large'
         ? 'h-[220px] w-[160px]'
         : 'h-[180px] w-[132px]'
 
   const containerClass = cn(
-    'rounded-md border border-theme-border bg-theme-sidebar flex items-center justify-center overflow-hidden',
+    'rounded-xl border border-white/10 bg-theme-sidebar/90 shadow-inner flex items-center justify-center overflow-hidden ring-1 ring-black/20',
     cls,
     className,
   )
@@ -952,9 +1012,11 @@ function GameArtwork({
   const coverImgClass = 'h-full w-full object-cover'
   const iconImgClass = cn('shrink-0', iconOnlyImageClass(iconSize))
 
+  const rootWrap = cn('relative', iconSize === 'small' && 'shrink-0')
+
   if (src) {
     return (
-      <div className="relative">
+      <div className={rootWrap}>
         <div className={containerClass}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -977,7 +1039,7 @@ function GameArtwork({
   }
 
   return (
-    <div className="relative">
+    <div className={rootWrap}>
       <div className={containerClass}>
         <div className="text-2xl font-bold text-theme-muted">{game.name.slice(0, 1).toUpperCase()}</div>
       </div>
@@ -1145,9 +1207,9 @@ export default function Home() {
   const iconSize: IconSize = settings.gameIconSize === 'small' || settings.gameIconSize === 'large' ? settings.gameIconSize : 'medium'
   const sortOrder = settings.gameOrder === 'Z-A' ? 'Z-A' : 'A-Z'
   const shopName = settings.shopName?.trim() || 'EZJR Menu'
-  const categoryPosition = normalizePos(settings.categoryPosition, 'top-left')
-  const quickAccessPosition = normalizePos(settings.quickAccessPosition, 'center-right')
-  const tagsPosition = normalizePos(settings.tagsPosition, 'top-left')
+  const categoryLayout = parseLayoutPosition(settings.categoryPosition, 'top-left')
+  const quickLayout = parseLayoutPosition(settings.quickAccessPosition, 'right-center')
+  const tagsPosition = normalizeLayoutPosition(settings.tagsPosition, 'top-left')
   const showTags = settings.showTags !== false
   const showCategoryIcons = settings.showCategoryIcons !== false
   const showQuickAccess = settings.showQuickAccess !== false
@@ -1163,20 +1225,16 @@ export default function Home() {
   function commitSearch() {
     setCommittedSearch(searchInput)
   }
-  const quickIsLeft = quickAccessPosition.endsWith('left')
-  const quickIsRight = quickAccessPosition.endsWith('right')
-  const quickIsStackedTop = quickAccessPosition === 'top-center'
-  const quickIsStackedBottom = quickAccessPosition === 'bottom-center'
+  const quickIsLeft = quickLayout.edge === 'left'
+  const quickIsRight = quickLayout.edge === 'right'
+  const quickIsStackedTop = quickLayout.edge === 'top'
+  const quickIsStackedBottom = quickLayout.edge === 'bottom'
   const quickIsStacked = quickIsStackedTop || quickIsStackedBottom
 
-  const quickVerticalClass = quickAccessPosition.startsWith('top')
-    ? 'items-start'
-    : quickAccessPosition.startsWith('bottom')
-      ? 'items-end'
-      : 'items-center'
-
-  // When Quick Access is stacked above/below, we always center it horizontally.
-  const quickSlotAlignClass = quickIsStacked ? 'items-center' : quickVerticalClass
+  const quickSlotAlignClass =
+    quickIsStackedTop || quickIsStackedBottom
+      ? horizontalStripJustifyClass(quickLayout.sub)
+      : categoryRailMainAlignClass(quickLayout.sub)
 
   const visibleGames = useMemo(
     () => games.filter((g) => isGameVisibleToClient(g, clientIdentity, managerClients)),
@@ -1307,12 +1365,14 @@ export default function Home() {
     day: 'numeric',
   });
 
-  const launcherPanel =
-    'rounded-lg border border-theme-border/50 bg-theme-sidebar/35 shadow-sm backdrop-blur-md'
+  const libraryShellClass =
+    'rounded-2xl border border-white/10 bg-theme-sidebar/30 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.55)] backdrop-blur-xl ring-1 ring-white/5'
+  const quickDockClass =
+    'rounded-2xl border border-white/10 bg-gradient-to-b from-theme-card/50 to-theme-sidebar/40 p-2 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] backdrop-blur-xl ring-1 ring-white/5'
 
   return (
     <div
-      className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-theme-app bg-cover bg-center bg-no-repeat font-[system-ui,'Segoe_UI',-apple-system,sans-serif] text-theme-text antialiased"
+      className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-theme-app bg-cover bg-center bg-no-repeat font-[system-ui,'Segoe_UI',-apple-system,sans-serif] text-theme-text antialiased selection:bg-theme-primary/30"
       style={backgroundImageSrc ? { backgroundImage: `url("${backgroundImageSrc}")` } : undefined}
     >
       <Head>
@@ -1320,23 +1380,27 @@ export default function Home() {
       </Head>
 
       {backgroundImageSrc ? (
-        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-theme-app/80 via-theme-app/65 to-theme-app/90 backdrop-blur-[1px]" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-theme-app/85 via-theme-app/70 to-theme-app/95 backdrop-blur-[2px]" />
       ) : (
-        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-theme-app via-theme-app to-theme-sidebar/30" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-theme-app via-theme-sidebar/20 to-theme-app" />
       )}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.35)_100%)]" />
 
-      <header className="relative z-10 mx-3 mt-2 flex min-h-[3.25rem] shrink-0 items-center gap-3 rounded-lg border border-theme-border/55 bg-theme-sidebar/50 px-3 py-2 shadow-sm backdrop-blur-md md:mx-4 md:mt-3 md:min-h-[3.5rem] md:gap-4 md:px-4">
+      <header className="relative z-10 mx-3 mt-2 flex min-h-[3.25rem] shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-theme-sidebar/45 px-3 py-2 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.4)] backdrop-blur-xl md:mx-4 md:mt-3 md:min-h-[3.5rem] md:gap-4 md:px-4">
         <div className="flex min-w-0 flex-1 items-center justify-start md:flex-none">
           {logoImageSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoImageSrc} alt={shopName} className="max-h-14 w-auto max-w-[min(280px,40vw)] object-contain md:max-h-16" />
+            <img src={logoImageSrc} alt={shopName} className="max-h-14 w-auto max-w-[min(280px,40vw)] object-contain drop-shadow-md md:max-h-16" />
           ) : (
-            <div className="truncate text-2xl font-bold tracking-tight text-theme-primary md:text-3xl">{shopName}</div>
+            <div className="truncate bg-gradient-to-r from-theme-text to-theme-muted bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">
+              {shopName}
+            </div>
           )}
         </div>
-        <div className="flex min-w-0 max-w-md flex-1 items-center gap-2">
+        <div className="relative flex min-w-0 max-w-md flex-1 items-center gap-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-theme-muted" aria-hidden />
           <Input
-            className="h-9 min-w-0 flex-1 rounded-md border border-theme-border/60 bg-theme-card/90 text-sm shadow-sm"
+            className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-theme-card/80 pl-9 pr-3 text-sm shadow-inner transition-[box-shadow,background] placeholder:text-theme-muted focus-visible:border-theme-primary/40 focus-visible:ring-2 focus-visible:ring-theme-primary/25"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => {
@@ -1345,17 +1409,17 @@ export default function Home() {
                 commitSearch()
               }
             }}
-            placeholder="Search library…"
+            placeholder="Search your library…"
             aria-label="Search games"
           />
           <Button
             type="button"
             size="icon"
-            className="h-9 w-9 shrink-0 rounded-md"
+            className="h-10 w-10 shrink-0 rounded-xl shadow-md transition-transform hover:scale-[1.03] active:scale-[0.98]"
             aria-label="Apply search"
             onClick={() => commitSearch()}
           >
-            <Search className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
@@ -1363,36 +1427,41 @@ export default function Home() {
             <HeaderLinkButton key={link.id} link={link} />
           ))}
           <div className="flex shrink-0 items-center gap-0.5">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="rounded-full text-theme-text hover:bg-theme-card/80"
-            aria-label="Minimize"
-            onClick={() => WindowMinimise()}
-          >
-            <Minus className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="rounded-full text-theme-text hover:bg-theme-error/90 hover:text-theme-text"
-            aria-label="Close"
-            onClick={() => Quit()}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="rounded-full text-theme-text hover:bg-theme-card/80"
+              aria-label="Minimize"
+              onClick={() => WindowMinimise()}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="rounded-full text-theme-text hover:bg-theme-error/90 hover:text-theme-text"
+              aria-label="Close"
+              onClick={() => Quit()}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>
 
-      <div className={`relative z-10 mx-3 mb-2 mt-2 flex min-h-0 flex-1 gap-2 md:mx-4 md:gap-2 ${quickIsStacked ? 'flex-col' : ''}`}>
+      <div
+        className={cn(
+          'relative z-10 mx-3 mb-2 mt-2 flex min-h-0 flex-1 gap-3 md:mx-4 md:gap-3',
+          quickIsStacked && 'flex-col',
+        )}
+      >
         {showQuickAccess && quickIsStackedTop && quickAccessGames.length > 0 ? (
-          <div className="flex w-full justify-center">
+          <div className={cn('flex w-full', quickSlotAlignClass)}>
             <aside className="flex flex-col items-center gap-2">
               {showQuickAccessTitle ? (
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex items-center gap-2 p-2', launcherPanel)}>
+              <div className={cn('flex flex-wrap items-center gap-2', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1415,12 +1484,12 @@ export default function Home() {
         ) : null}
 
         {showQuickAccess && quickIsLeft && quickAccessGames.length > 0 ? (
-          <div className={`order-[-1] flex ${quickSlotAlignClass}`}>
+          <div className={cn('order-[-1] flex', quickSlotAlignClass)}>
             <aside className="flex flex-col items-center gap-2">
               {showQuickAccessTitle ? (
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex w-full flex-col items-center gap-2.5 p-2', launcherPanel)}>
+              <div className={cn('flex w-full flex-col items-center gap-2.5', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1444,7 +1513,7 @@ export default function Home() {
 
         <div className="flex min-w-0 flex-1">
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {isCategoryTop(categoryPosition) ? (
+            {categoryLayout.edge === 'top' ? (
               <LauncherCategoryTabs
                 tabItems={tabItems}
                 activeTab={activeTab}
@@ -1452,13 +1521,18 @@ export default function Home() {
                 direction="row"
                 tabAlign="bar"
                 showIcons={showCategoryIcons}
-                justifyClass={tabsPosClass(categoryPosition)}
+                barAlign={categoryLayout.sub as 'left' | 'center' | 'right'}
               />
             ) : null}
 
-            <div className="flex min-h-0 min-w-0 flex-1 gap-2.5">
-              {isCategoryCenterLeft(categoryPosition) ? (
-                <div className="mb-0 flex flex-col flex-nowrap items-start justify-start">
+            <div className="flex min-h-0 min-w-0 flex-1 gap-3">
+              {categoryLayout.edge === 'left' ? (
+                <div
+                  className={cn(
+                    'mb-0 flex min-h-0 min-w-0 flex-col flex-nowrap self-stretch',
+                    categoryRailMainAlignClass(categoryLayout.sub),
+                  )}
+                >
                   <LauncherCategoryTabs
                     tabItems={tabItems}
                     activeTab={activeTab}
@@ -1472,8 +1546,11 @@ export default function Home() {
 
               <div
                 className={cn(
-                  'grid min-h-0 min-w-0 flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 overflow-auto p-4',
-                  launcherPanel,
+                  'grid min-h-0 min-w-0 flex-1 auto-rows-min gap-3 overflow-auto p-4',
+                  libraryShellClass,
+                  iconSize == 'small' && 'grid-cols-[repeat(auto-fill,minmax(100px,1fr))]',
+                  iconSize == 'medium' && 'grid-cols-[repeat(auto-fill,minmax(140px,1fr))]',
+                  iconSize == 'large' && 'grid-cols-[repeat(auto-fill,minmax(160px,1fr))]',
                 )}
               >
                 {filteredGames.map((game) => {
@@ -1485,12 +1562,12 @@ export default function Home() {
                       variant="ghost"
                       data-game-tile
                       className={cn(
-                        'group relative overflow-hidden flex h-auto min-h-0 w-full min-w-0 max-w-[13rem] flex-col items-center justify-start gap-2 rounded-md border p-2.5 !m-0 justify-self-center',
-                        'text-inherit transition-colors duration-150',
-                        'border border-transparent bg-transparent hover:bg-theme-card/55',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-accent focus-visible:ring-offset-1 focus-visible:ring-offset-theme-app',
+                        'group relative flex h-auto min-h-0 w-full min-w-0 max-w-[13rem] flex-col items-center justify-start gap-2 overflow-hidden rounded-2xl border p-3 !m-0 justify-self-center',
+                        'border border-white/5 bg-theme-card/20 text-inherit shadow-sm ring-1 ring-black/20 transition-all duration-200',
+                        'hover:-translate-y-0.5 hover:border-theme-primary/25 hover:bg-theme-card/45 hover:shadow-lg hover:shadow-black/30',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-app',
                         selected &&
-                          'border-theme-border/60 bg-theme-primary/12 ring-1 ring-inset ring-theme-primary/40',
+                          'border-theme-primary/40 bg-theme-primary/15 shadow-lg shadow-black/25 ring-2 ring-theme-primary/35',
                       )}
                       onClick={() => setSelectedGameId(game.id)}
                       onDoubleClick={() => void handleLaunchGame(game)}
@@ -1514,8 +1591,13 @@ export default function Home() {
                 })}
               </div>
 
-              {isCategoryCenterRight(categoryPosition) ? (
-                <div className="mb-0 flex flex-col flex-nowrap items-end justify-start">
+              {categoryLayout.edge === 'right' ? (
+                <div
+                  className={cn(
+                    'mb-0 flex min-h-0 min-w-0 flex-col flex-nowrap items-end self-stretch',
+                    categoryRailMainAlignClass(categoryLayout.sub),
+                  )}
+                >
                   <LauncherCategoryTabs
                     tabItems={tabItems}
                     activeTab={activeTab}
@@ -1528,7 +1610,7 @@ export default function Home() {
               ) : null}
             </div>
 
-            {isCategoryBottom(categoryPosition) ? (
+            {categoryLayout.edge === 'bottom' ? (
               <LauncherCategoryTabs
                 tabItems={tabItems}
                 activeTab={activeTab}
@@ -1536,17 +1618,19 @@ export default function Home() {
                 direction="row"
                 tabAlign="bar"
                 showIcons={showCategoryIcons}
-                justifyClass={tabsPosClass(categoryPosition)}
+                barAlign={categoryLayout.sub as 'left' | 'center' | 'right'}
               />
             ) : null}
           </main>
         </div>
 
         {showQuickAccess && quickIsRight && quickAccessGames.length > 0 ? (
-          <div className={`order-1 flex ${quickSlotAlignClass}`}>
+          <div className={cn('order-1 flex', quickSlotAlignClass)}>
             <aside className="flex flex-col items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
-              <div className={cn('flex w-full flex-col items-center gap-2 p-2', launcherPanel)}>
+              {showQuickAccessTitle ? (
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
+              ) : null}
+              <div className={cn('flex w-full flex-col items-center gap-2', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1569,12 +1653,12 @@ export default function Home() {
         ) : null}
 
         {showQuickAccess && quickIsStackedBottom && quickAccessGames.length > 0 ? (
-          <div className="flex w-full justify-center">
+          <div className={cn('flex w-full', quickSlotAlignClass)}>
             <aside className="flex flex-col items-center gap-2">
               {showQuickAccessTitle ? (
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-theme-muted">Quick access</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex items-center gap-2 p-2', launcherPanel)}>
+              <div className={cn('flex flex-wrap items-center gap-2', quickDockClass)}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
@@ -1598,8 +1682,8 @@ export default function Home() {
       </div>
 
       {showFooter ? (
-        <footer className="relative z-10 mx-3 mb-2 flex items-center gap-3 rounded-lg border border-theme-border/50 bg-theme-sidebar/50 px-3 py-2.5 text-sm shadow-sm backdrop-blur-md md:mx-4">
-          <span className="shrink-0 text-sm font-bold text-theme-primary">{computerName}</span>
+        <footer className="relative z-10 mx-3 mb-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-theme-sidebar/40 px-3 py-2.5 text-sm shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.35)] backdrop-blur-xl md:mx-4">
+          <span className="shrink-0 text-sm font-bold tracking-wide text-theme-primary">{computerName}</span>
 
           {/* {windowsStartupStatus ? (
             <span className="shrink-0 text-xs text-theme-muted" title="HKCU\Software\Microsoft\Windows\CurrentVersion\Run\EZJRGameClient">

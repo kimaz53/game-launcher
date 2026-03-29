@@ -213,7 +213,7 @@ export default function LinksPage() {
       </Head>
 
       <div className="min-h-0 flex-1 rounded-xl bg-theme-card">
-        <div className="flex h-full flex-col gap-4 overflow-auto rounded-lg border border-theme-border bg-theme-app p-6">
+        <div className="flex h-full flex-col gap-4 overflow-auto bg-theme-app">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-lg font-semibold text-theme-text">Header links</h1>
@@ -242,23 +242,27 @@ export default function LinksPage() {
           <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-theme-border">
             <Table>
               <TableHeader>
-                <TableRow className="border-theme-border hover:bg-transparent">
-                  <TableHead className="w-[72px] text-theme-muted">Icon</TableHead>
-                  <TableHead className="text-theme-muted">Label</TableHead>
-                  <TableHead className="text-theme-muted">URL</TableHead>
-                  <TableHead className="w-[120px] text-right text-theme-muted">Actions</TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="sticky top-0 z-10 w-[72px] bg-theme-sidebar text-theme-secondary-text backdrop-blur">
+                    Icon
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-10 bg-theme-sidebar text-theme-secondary-text backdrop-blur">Label</TableHead>
+                  <TableHead className="sticky top-0 z-10 bg-theme-sidebar text-theme-secondary-text backdrop-blur">URL</TableHead>
+                  <TableHead className="sticky top-0 z-10 w-[120px] bg-theme-sidebar text-right text-theme-secondary-text backdrop-blur">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sorted.length === 0 ? (
-                  <TableRow className="border-theme-border hover:bg-transparent">
+                  <TableRow className="border-theme-border hover:bg-theme-card">
                     <TableCell colSpan={4} className="py-10 text-center text-sm text-theme-muted">
                       No links yet. Add a label and URL (https://…); optionally add an icon image.
                     </TableCell>
                   </TableRow>
                 ) : (
                   sorted.map((link) => (
-                    <TableRow key={link.id} className="border-theme-border">
+                    <TableRow key={link.id} className="border-theme-border hover:bg-theme-card">
                       <TableCell>
                         <LinkIconThumb relPath={link.icon} />
                       </TableCell>
@@ -270,28 +274,30 @@ export default function LinksPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
-                          aria-label={`Edit ${link.label}`}
-                          disabled={!canPersist}
-                          onClick={() => openEdit(link)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="bg-theme-secondary text-theme-text hover:bg-theme-error"
-                          aria-label={`Remove ${link.label}`}
-                          disabled={!canPersist}
-                          onClick={() => void handleDelete(link.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="inline-flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
+                            aria-label={`Edit ${link.label}`}
+                            disabled={!canPersist}
+                            onClick={() => openEdit(link)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="bg-theme-secondary text-theme-text hover:bg-theme-error"
+                            aria-label={`Remove ${link.label}`}
+                            disabled={!canPersist}
+                            onClick={() => void handleDelete(link.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -346,7 +352,7 @@ export default function LinksPage() {
                     Choose image…
                   </Button>
                   {formIcon ? (
-                    <Button type="button" variant="ghost" size="sm" className="gap-1 text-theme-muted" onClick={() => setFormIcon('')}>
+                    <Button type="button" variant="ghost" size="sm" className="gap-1 text-theme-muted hover:!bg-theme-secondary hover:!text-theme-text" onClick={() => setFormIcon('')}>
                       <X className="h-3.5 w-3.5" />
                       Remove
                     </Button>

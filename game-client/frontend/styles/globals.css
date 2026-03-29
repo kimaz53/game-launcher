@@ -3,25 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --color-app-background: 8 20 58;
-  --color-sidebar: 16 37 74;
-  --color-card: 39 56 79;
-  --color-border: 39 56 90;
-  --color-text: 236 243 255;
-  --color-muted-text: 168 183 217;
+  /* Default: VS Blue dark — aligned with game-manager app-shell / globals.css */
+  --color-app-background: 13 17 23;
+  --color-sidebar: 22 27 34;
+  --color-card: 31 41 55;
+  --color-border: 48 54 61;
+  --color-text: 240 246 252;
+  --color-muted-text: 155 167 180;
   --color-primary-button: 59 130 246;
   --color-hovered-primary-button: 37 99 235;
-  --color-secondary-button: 39 56 79;
-  --color-hovered-secondary-button: 16 37 74;
-  --color-secondary-accent: 96 165 250;
-  --color-secondary-text: 168 183 217;
+  --color-secondary-button: 31 41 55;
+  --color-hovered-secondary-button: 22 27 34;
+  --color-secondary-accent: 14 165 233;
+  --color-secondary-text: 139 148 158;
   --color-success: 34 197 94;
   --color-warning: 245 158 11;
   --color-error: 239 68 68;
   --color-info: 14 165 233;
-  --color-scrollbar-track: 16 37 74;
-  --color-scrollbar-thumb: 58 79 119;
-  --color-scrollbar-thumb-hover: 81 106 153;
+  --color-scrollbar-track: 22 27 34;
+  --color-scrollbar-thumb: 58 68 80;
+  --color-scrollbar-thumb-hover: 79 94 110;
 }
 
 /* Keep backward-compatible vars used by runtime theme updates. */
@@ -96,4 +97,11 @@ a {
   100% {
     transform: translateX(-100%);
   }
+}
+
+* {
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE10+ */
+  user-select: none; /* Standard syntax */
 }
