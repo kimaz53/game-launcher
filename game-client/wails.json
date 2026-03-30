@@ -1,6 +1,6 @@
 {
   "name": "game-client",
-  "outputfilename": "game-client",
+  "outputfilename": "Game Client",
   "assetdir": "frontend/out",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
@@ -10,5 +10,11 @@
   "author": {
     "name": "kimaz53",
     "email": "junmarilr@gmail.com"
+  },
+  "info": {
+    "companyName": "EZJR",
+    "productName": "Game Client",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2026"
   }
 }

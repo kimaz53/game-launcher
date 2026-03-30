@@ -135,6 +135,7 @@ export default function GamesPage() {
   const [editingGame, setEditingGame] = useState<Game | undefined>(undefined)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [allowedClientsExpanded, setAllowedClientsExpanded] = useState<Record<number, boolean>>({})
+  const [categoriesExpanded, setCategoriesExpanded] = useState<Record<number, boolean>>({})
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [searchQuery, setSearchQuery] = useState('')
@@ -424,13 +425,52 @@ export default function GamesPage() {
                   <TableCell className="font-medium text-theme-text">{game.name}</TableCell>
                   <TableCell className="text-theme-text">
                     {categoryParts.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {categoryParts.map((c) => (
-                          <span key={c} className={metaPillClass}>
-                            {c}
-                          </span>
-                        ))}
-                      </div>
+                      categoryParts.length <= 2 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {categoryParts.map((c) => (
+                            <span key={c} className={metaPillClass}>
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <Collapsible
+                          open={!!categoriesExpanded[game.id]}
+                          onOpenChange={(next) =>
+                            setCategoriesExpanded((prev) => ({
+                              ...prev,
+                              [game.id]: next,
+                            }))
+                          }
+                        >
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-wrap gap-1.5">
+                              {categoryParts.slice(0, 2).map((c) => (
+                                <span key={c} className={metaPillClass}>
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                            <CollapsibleContent className="flex flex-wrap gap-1.5 pt-1.5">
+                              {categoryParts.slice(2).map((c) => (
+                                <span key={c} className={metaPillClass}>
+                                  {c}
+                                </span>
+                              ))}
+                            </CollapsibleContent>
+                            <CollapsibleTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-auto justify-start px-0 py-0 text-xs text-theme-muted hover:bg-transparent hover:text-theme-text"
+                              >
+                                <ChevronDown className={cn('h-3.5 w-3.5', categoriesExpanded[game.id] && 'rotate-180')} />
+                                {categoriesExpanded[game.id] ? 'Showing all' : 'Show all'} ({categoryParts.length})
+                              </Button>
+                            </CollapsibleTrigger>
+                          </div>
+                        </Collapsible>
+                      )
                     ) : (
                       <span className="text-sm text-theme-muted">—</span>
                     )}

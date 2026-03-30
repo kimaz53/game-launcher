@@ -181,7 +181,7 @@ function HeaderLinkButton({ link }: { link: ManagerLink }) {
       type="button"
       variant="ghost"
       size="sm"
-      className="flex h-8 max-w-[min(12rem,40vw)] shrink-0 flex-row items-center gap-1.5 px-2.5 text-xs font-medium text-theme-text hover:bg-theme-card/80"
+      className="flex h-8 max-w-[min(12rem,40vw)] shrink-0 flex-row items-center gap-1.5 px-2.5 text-xs font-medium text-theme-text hover:bg-theme-card/80 focus-visible:ring-1 focus-visible:ring-theme-primary"
       title={`${link.label} — ${link.url}`}
       onClick={() => BrowserOpenURL(link.url)}
     >
@@ -827,6 +827,7 @@ function LauncherCategoryTabs({
           active
             ? 'bg-theme-primary text-theme-text shadow-[0_0_0_1px_rgba(255,255,255,0.12)] ring-2 ring-theme-primary/35'
             : 'text-theme-muted hover:bg-theme-card/60 hover:text-theme-text',
+          'outline-theme-primary focus-visible:outline focus-visible:outline-theme-primary',
         )}
       >
         <CategoryTabLabel tab={tab} tabAlign={tabAlign} showIcons={showIcons} />
@@ -1049,7 +1050,7 @@ function GameArtwork({
   if (src) {
     return (
       <div className={rootWrap}>
-        <div className={containerClass}>
+        <div className={cn(containerClass, iconSize === 'small' && 'ring-0 shadow-none border-none')}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
@@ -1102,6 +1103,10 @@ export default function Home() {
   const [computerName, setComputerName] = useState('COMPUTER')
   const [backgroundImageSrc, setBackgroundImageSrc] = useState('')
   const [logoImageSrc, setLogoImageSrc] = useState('')
+  // Boot gating: keep the UI blocked until base JSON + (optional) background/logo images are ready.
+  const [jsonLoaded, setJsonLoaded] = useState(false)
+  const [bgImageLoaded, setBgImageLoaded] = useState(false)
+  const [logoImageLoaded, setLogoImageLoaded] = useState(false)
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
   const [launchDialog, setLaunchDialog] = useState<{
     title: string
@@ -1153,6 +1158,9 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false
     async function run() {
+      setJsonLoaded(false)
+      setBgImageLoaded(false)
+      setLogoImageLoaded(false)
       const [gamesJson, categoriesJson, quickJson, settingsJson, clientsJson, identityJson, linksJson] = await Promise.all([
         LoadManagerGamesJSON(),
         LoadManagerCategoriesJSON(),
@@ -1214,6 +1222,9 @@ export default function Home() {
         setSettings({})
         if (typeof window !== 'undefined') applyTheme('vs-blue', 'dark')
       }
+
+      // At this point, the "base" JSON is ready; background/logo image effects will flip their loaded flags next.
+      setJsonLoaded(true)
     }
     void run()
     return () => {
@@ -1224,13 +1235,18 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false
     async function run() {
+      setBgImageLoaded(false)
       const relPath = settings.backgroundImage?.trim()
       if (!relPath) {
         setBackgroundImageSrc('')
+        setBgImageLoaded(true)
         return
       }
       const data = await ReadManagerImageDataURL(relPath)
-      if (!cancelled) setBackgroundImageSrc(data || '')
+      if (!cancelled) {
+        setBackgroundImageSrc(data || '')
+        setBgImageLoaded(true)
+      }
     }
     void run()
     return () => {
@@ -1241,13 +1257,18 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false
     async function run() {
+      setLogoImageLoaded(false)
       const relPath = settings.logoImage?.trim()
       if (!relPath) {
         setLogoImageSrc('')
+        setLogoImageLoaded(true)
         return
       }
       const data = await ReadManagerImageDataURL(relPath)
-      if (!cancelled) setLogoImageSrc(data || '')
+      if (!cancelled) {
+        setLogoImageSrc(data || '')
+        setLogoImageLoaded(true)
+      }
     }
     void run()
     return () => {
@@ -1421,6 +1442,13 @@ export default function Home() {
   const quickDockClass =
     'rounded-2xl border border-white/10 bg-gradient-to-b from-theme-card/50 to-theme-sidebar/40 p-2 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] backdrop-blur-xl ring-1 ring-white/5'
 
+  const shouldShowLoader =
+    !jsonLoaded ||
+    (settings.backgroundImage?.trim() ? !bgImageLoaded : false) ||
+    (settings.logoImage?.trim() ? !logoImageLoaded : false)
+
+  const loaderMessage = !jsonLoaded ? 'Loading menu data…' : 'Loading images…'
+
   return (
     <div
       className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-theme-app bg-cover bg-center bg-no-repeat font-[system-ui,'Segoe_UI',-apple-system,sans-serif] text-theme-text antialiased selection:bg-theme-primary/30"
@@ -1429,6 +1457,30 @@ export default function Home() {
       <Head>
         <title>Game Menu</title>
       </Head>
+
+      {shouldShowLoader ? (
+        <div
+          className="absolute inset-0 z-[120] flex items-center justify-center p-4"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="w-full max-w-[28rem] rounded-2xl border border-white/10 bg-theme-sidebar/45 p-6 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <div
+                className="h-10 w-10 animate-spin rounded-full border-4 border-theme-muted/40 border-t-theme-primary/80"
+                aria-hidden
+              />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-bold text-theme-text">{loaderMessage}</div>
+                <div className="mt-1 text-xs text-theme-muted">
+                  This can take a moment while the launcher reads local configuration.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {backgroundImageSrc ? (
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-theme-app/85 via-theme-app/70 to-theme-app/95 backdrop-blur-[2px]" />
@@ -1466,7 +1518,7 @@ export default function Home() {
           <Button
             type="button"
             size="icon"
-            className="h-10 w-10 shrink-0 rounded-xl shadow-md transition-transform hover:scale-[1.03] active:scale-[0.98]"
+            className="h-10 w-10 shrink-0 rounded-xl shadow-md transition-transform hover:scale-[1.03] active:scale-[0.98] focus-visible:ring-1 focus-visible:ring-theme-primary"
             aria-label="Apply search"
             onClick={() => commitSearch()}
           >
@@ -1481,7 +1533,7 @@ export default function Home() {
             <Button
               size="icon"
               variant="ghost"
-              className="rounded-full text-theme-text hover:bg-theme-card/80"
+              className="rounded-full text-theme-text hover:bg-theme-card/80 focus-visible:ring-1 focus-visible:ring-theme-primary"
               aria-label="Minimize"
               onClick={() => WindowMinimise()}
             >
@@ -1490,7 +1542,7 @@ export default function Home() {
             <Button
               size="icon"
               variant="ghost"
-              className="rounded-full text-theme-text hover:bg-theme-error/90 hover:text-theme-text"
+              className="rounded-full text-theme-text hover:bg-theme-error/90 hover:text-theme-text focus-visible:ring-1 focus-visible:ring-theme-primary"
               aria-label="Close"
               onClick={() => Quit()}
             >
@@ -1512,14 +1564,14 @@ export default function Home() {
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
+              <div className={cn('flex max-w-full overflow-x-auto p-1 items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent",
+                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
                       //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
@@ -1541,7 +1593,7 @@ export default function Home() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
               <div
-                className={cn('flex w-full min-h-0 flex-col overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
+                className={cn('flex w-full min-h-0 flex-col p-1 overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
                 style={
                   libraryGridHeightPx != null && libraryGridHeightPx > 0
                     ? { height: libraryGridHeightPx, maxHeight: libraryGridHeightPx }
@@ -1554,7 +1606,7 @@ export default function Home() {
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent",
+                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
                       //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
@@ -1671,6 +1723,14 @@ export default function Home() {
                               )}
                               onClick={() => setSelectedGameId(game.id)}
                               onDoubleClick={() => void handleLaunchGame(game)}
+                              onKeyUp={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  setSelectedGameId(game.id)
+                                  void handleLaunchGame(game)
+                                } else if (e.key === 'Escape') {
+                                  setSelectedGameId(null)
+                                }
+                              }}
                             >
                               <GameArtwork
                                 game={game}
@@ -1736,7 +1796,7 @@ export default function Home() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
               <div
-                className={cn('flex w-full min-h-0 flex-col overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
+                className={cn('flex w-full min-h-0 flex-col p-1 overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
                 style={
                   libraryGridHeightPx != null && libraryGridHeightPx > 0
                     ? { height: libraryGridHeightPx, maxHeight: libraryGridHeightPx }
@@ -1749,7 +1809,7 @@ export default function Home() {
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent",
+                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
                       //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
@@ -1770,15 +1830,15 @@ export default function Home() {
               {showQuickAccessTitle ? (
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
               ) : null}
-              <div className={cn('flex max-w-full overflow-x-auto items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
+              <div className={cn('flex max-w-full overflow-x-auto p-1 items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
                 {quickAccessGames.map((g) => (
                   <Button
                     key={g.id}
                     type="button"
                     variant="ghost"
                     className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent",
-                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
+                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
+                      // selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 focus-visible:ring-1 focus-visible:ring-theme-primary' : ''
                     )}
                     aria-label={g.name}
                     // onClick={() => setSelectedGameId(g.id)}
@@ -1829,7 +1889,7 @@ export default function Home() {
                 <img
                   src={launchDialog.iconSrc}
                   alt={launchDialog.gameName ?? ''}
-                  className="h-14 w-14 shrink-0 rounded-lg border border-theme-border bg-theme-sidebar object-cover"
+                  className="h-14 w-14 shrink-0 rounded-lg object-cover"
                 />
               ) : (
                 <div
