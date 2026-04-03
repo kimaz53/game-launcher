@@ -51,7 +51,7 @@ body {
   overflow: hidden;
   background-color: rgb(var(--color-app-background));
   color: rgb(var(--color-text));
-  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans, 'Segoe UI Variable', 'Segoe UI'), system-ui, sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
@@ -103,6 +103,57 @@ a {
   100% {
     transform: translateX(-100%);
   }
+}
+
+/* Footer ticker (game launcher redesign): full-width sweep like static mock */
+@keyframes launcherFooterTicker {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.launcher-footer-ticker {
+  animation: launcherFooterTicker 20s linear infinite;
+}
+
+@keyframes tilePopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.tile-pop-in {
+  animation: tilePopIn 0.38s cubic-bezier(0.22, 0.68, 0.25, 1) both;
+}
+
+@keyframes launcher-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.launcher-shimmer {
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 45%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.06) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: launcher-shimmer 2.5s ease-in-out infinite;
 }
 
 * {

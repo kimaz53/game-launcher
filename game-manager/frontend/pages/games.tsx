@@ -115,13 +115,16 @@ function ExecutableIcon({ relPath, alt }: { relPath?: string; alt: string }) {
   }, [relPath])
 
   if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={alt} className="h-10 w-10 rounded-md" />
+    return (
+      <div className="size-10 shrink-0 overflow-hidden">
+        <img src={src} alt={alt} className="h-full w-full object-cover" />
+      </div>
+    )
   }
 
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-md border border-theme-border bg-theme-secondary">
-      <Gamepad2 className="h-5 w-5 text-theme-accent" aria-hidden />
+    <div className="flex size-10 items-center justify-center rounded-md border border-theme-border bg-theme-secondary">
+      <Gamepad2 className="size-7 text-theme-accent" aria-hidden />
     </div>
   )
 }
@@ -411,51 +414,122 @@ export default function GamesPage() {
               {sortedGames.map((game) => {
                 const categoryParts = parseCategoryParts(game.category)
                 return (
-                <TableRow key={game.id} className="hover:bg-theme-card">
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedIds.includes(game.id)}
-                      onCheckedChange={(value) => setRowSelected(game.id, value === true)}
-                      aria-label={`Select ${game.name}`}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium text-theme-text">
-                    <ExecutableIcon relPath={game.exeIconRelPath} alt={game.name} />
-                  </TableCell>
-                  <TableCell className="font-medium text-theme-text">{game.name}</TableCell>
-                  <TableCell className="text-theme-text">
-                    {categoryParts.length > 0 ? (
-                      categoryParts.length <= 2 ? (
+                  <TableRow key={game.id} className="hover:bg-theme-card">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.includes(game.id)}
+                        onCheckedChange={(value) => setRowSelected(game.id, value === true)}
+                        aria-label={`Select ${game.name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium text-theme-text">
+                      <ExecutableIcon relPath={game.exeIconRelPath} alt={game.name} />
+                    </TableCell>
+                    <TableCell className="font-medium text-theme-text">{game.name}</TableCell>
+                    <TableCell className="text-theme-text">
+                      {categoryParts.length > 0 ? (
+                        categoryParts.length <= 2 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {categoryParts.map((c) => (
+                              <span key={c} className={metaPillClass}>
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <Collapsible
+                            open={!!categoriesExpanded[game.id]}
+                            onOpenChange={(next) =>
+                              setCategoriesExpanded((prev) => ({
+                                ...prev,
+                                [game.id]: next,
+                              }))
+                            }
+                          >
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex flex-wrap gap-1.5">
+                                {categoryParts.slice(0, 2).map((c) => (
+                                  <span key={c} className={metaPillClass}>
+                                    {c}
+                                  </span>
+                                ))}
+                              </div>
+                              <CollapsibleContent className="flex flex-wrap gap-1.5 pt-1.5">
+                                {categoryParts.slice(2).map((c) => (
+                                  <span key={c} className={metaPillClass}>
+                                    {c}
+                                  </span>
+                                ))}
+                              </CollapsibleContent>
+                              <CollapsibleTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="h-auto justify-start px-0 py-0 text-xs text-theme-muted hover:bg-transparent hover:text-theme-text"
+                                >
+                                  <ChevronDown className={cn('h-3.5 w-3.5', categoriesExpanded[game.id] && 'rotate-180')} />
+                                  {categoriesExpanded[game.id] ? 'Showing all' : 'Show all'} ({categoryParts.length})
+                                </Button>
+                              </CollapsibleTrigger>
+                            </div>
+                          </Collapsible>
+                        )
+                      ) : (
+                        <span className="text-sm text-theme-muted">—</span>
+                      )}
+                    </TableCell>
+                    {/* <TableCell className="text-theme-text">{game.group}</TableCell> */}
+                    <TableCell className="text-theme-text">
+                      {game.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
-                          {categoryParts.map((c) => (
-                            <span key={c} className={metaPillClass}>
-                              {c}
+                          {game.tags.map((t) => (
+                            <span key={t} className={metaPillClass}>
+                              {t}
                             </span>
                           ))}
                         </div>
                       ) : (
+                        <span className="text-sm text-theme-muted">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-theme-text">
+                      {game.allowedClientIps.length === 0 ? (
+                        <span className={cn(metaPillClass, 'text-theme-muted')}>All clients</span>
+                      ) : game.allowedClientIps.length <= 2 ? (
+                        <div className="flex flex-col gap-1.5">
+                          {game.allowedClientIps.map((ip) => (
+                            <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
+                              <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
+                              <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
+                              <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
                         <Collapsible
-                          open={!!categoriesExpanded[game.id]}
+                          open={!!allowedClientsExpanded[game.id]}
                           onOpenChange={(next) =>
-                            setCategoriesExpanded((prev) => ({
+                            setAllowedClientsExpanded((prev) => ({
                               ...prev,
                               [game.id]: next,
                             }))
                           }
                         >
                           <div className="flex flex-col gap-1.5">
-                            <div className="flex flex-wrap gap-1.5">
-                              {categoryParts.slice(0, 2).map((c) => (
-                                <span key={c} className={metaPillClass}>
-                                  {c}
-                                </span>
-                              ))}
-                            </div>
-                            <CollapsibleContent className="flex flex-wrap gap-1.5 pt-1.5">
-                              {categoryParts.slice(2).map((c) => (
-                                <span key={c} className={metaPillClass}>
-                                  {c}
-                                </span>
+                            {game.allowedClientIps.slice(0, 2).map((ip) => (
+                              <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
+                                <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
+                                <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
+                                <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
+                              </div>
+                            ))}
+                            <CollapsibleContent className="flex flex-col gap-1.5">
+                              {game.allowedClientIps.slice(2).map((ip) => (
+                                <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
+                                  <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
+                                  <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
+                                  <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
+                                </div>
                               ))}
                             </CollapsibleContent>
                             <CollapsibleTrigger asChild>
@@ -464,122 +538,51 @@ export default function GamesPage() {
                                 variant="ghost"
                                 className="h-auto justify-start px-0 py-0 text-xs text-theme-muted hover:bg-transparent hover:text-theme-text"
                               >
-                                <ChevronDown className={cn('h-3.5 w-3.5', categoriesExpanded[game.id] && 'rotate-180')} />
-                                {categoriesExpanded[game.id] ? 'Showing all' : 'Show all'} ({categoryParts.length})
+                                <ChevronDown className={cn('h-3.5 w-3.5', allowedClientsExpanded[game.id] && 'rotate-180')} />
+                                {allowedClientsExpanded[game.id] ? 'Showing all' : 'Show all'} ({game.allowedClientIps.length})
                               </Button>
                             </CollapsibleTrigger>
                           </div>
                         </Collapsible>
-                      )
-                    ) : (
-                      <span className="text-sm text-theme-muted">—</span>
-                    )}
-                  </TableCell>
-                  {/* <TableCell className="text-theme-text">{game.group}</TableCell> */}
-                  <TableCell className="text-theme-text">
-                    {game.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {game.tags.map((t) => (
-                          <span key={t} className={metaPillClass}>
-                            {t}
-                          </span>
-                        ))}
+                      )}
+                    </TableCell>
+                    {/* <TableCell className="text-theme-text">{game.platform}</TableCell> */}
+                    <TableCell className="text-right text-theme-text">
+                      <div className="flex justify-end">
+                        <Badge
+                          className={cn('shrink-0',
+                            game.status === 'Installed'
+                              ? 'border-theme-success/45 bg-theme-success/15 text-theme-success'
+                              : 'border-theme-warning/45 bg-theme-warning/15 text-theme-warning',
+                          )}
+                        >
+                          {game.status}
+                        </Badge>
                       </div>
-                    ) : (
-                      <span className="text-sm text-theme-muted">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-theme-text">
-                    {game.allowedClientIps.length === 0 ? (
-                      <span className={cn(metaPillClass, 'text-theme-muted')}>All clients</span>
-                    ) : game.allowedClientIps.length <= 2 ? (
-                      <div className="flex flex-col gap-1.5">
-                        {game.allowedClientIps.map((ip) => (
-                          <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
-                            <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
-                            <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
-                            <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
-                          </div>
-                        ))}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
+                          onClick={() => handleEdit(game)}
+                          aria-label={`Edit ${game.name}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="bg-theme-secondary text-theme-text hover:bg-theme-error"
+                          onClick={() => openDeleteDialog([game.id])}
+                          aria-label={`Delete ${game.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                    ) : (
-                      <Collapsible
-                        open={!!allowedClientsExpanded[game.id]}
-                        onOpenChange={(next) =>
-                          setAllowedClientsExpanded((prev) => ({
-                            ...prev,
-                            [game.id]: next,
-                          }))
-                        }
-                      >
-                        <div className="flex flex-col gap-1.5">
-                          {game.allowedClientIps.slice(0, 2).map((ip) => (
-                            <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
-                              <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
-                              <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
-                              <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
-                            </div>
-                          ))}
-                          <CollapsibleContent className="flex flex-col gap-1.5">
-                            {game.allowedClientIps.slice(2).map((ip) => (
-                              <div key={ip} className={cn(metaPillClass, 'min-w-0')}>
-                                <span className="min-w-0 truncate font-medium">{clientLabel(ip)}</span>
-                                <span className="shrink-0 font-mono text-[10px] text-theme-muted">({ip})</span>
-                                <span className="shrink-0 text-[10px] uppercase text-theme-primary">{clientType(ip)}</span>
-                              </div>
-                            ))}
-                          </CollapsibleContent>
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="h-auto justify-start px-0 py-0 text-xs text-theme-muted hover:bg-transparent hover:text-theme-text"
-                            >
-                              <ChevronDown className={cn('h-3.5 w-3.5', allowedClientsExpanded[game.id] && 'rotate-180')} />
-                              {allowedClientsExpanded[game.id] ? 'Showing all' : 'Show all'} ({game.allowedClientIps.length})
-                            </Button>
-                          </CollapsibleTrigger>
-                        </div>
-                      </Collapsible>
-                    )}
-                  </TableCell>
-                  {/* <TableCell className="text-theme-text">{game.platform}</TableCell> */}
-                  <TableCell className="text-right text-theme-text">
-                    <div className="flex justify-end">
-                      <Badge
-                        className={cn('shrink-0',
-                          game.status === 'Installed'
-                            ? 'border-theme-success/45 bg-theme-success/15 text-theme-success'
-                            : 'border-theme-warning/45 bg-theme-warning/15 text-theme-warning',
-                        )}
-                      >
-                        {game.status}
-                      </Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="secondary"
-                        className="bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
-                        onClick={() => handleEdit(game)}
-                        aria-label={`Edit ${game.name}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="secondary"
-                        className="bg-theme-secondary text-theme-text hover:bg-theme-error"
-                        onClick={() => openDeleteDialog([game.id])}
-                        aria-label={`Delete ${game.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
             </TableBody>

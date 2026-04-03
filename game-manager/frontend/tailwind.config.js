@@ -4,6 +4,10 @@ module.exports = {
   content: ['./pages/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'Segoe UI', 'sans-serif'],
+        display: ['var(--font-display)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
+      },
       colors: {
         theme: {
           app: 'var(--color-app-background)',

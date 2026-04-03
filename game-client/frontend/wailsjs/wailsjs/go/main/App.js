@@ -22,6 +22,18 @@ export function LaunchGame(arg1, arg2) {
   return window['go']['main']['App']['LaunchGame'](arg1, arg2);
 }
 
+export function LaunchGameBlocking(arg1, arg2) {
+  return window['go']['main']['App']['LaunchGameBlocking'](arg1, arg2);
+}
+
+export function LaunchGameWithPID(arg1, arg2) {
+  return window['go']['main']['App']['LaunchGameWithPID'](arg1, arg2);
+}
+
+export function IsProcessRunning(arg1) {
+  return window['go']['main']['App']['IsProcessRunning'](arg1);
+}
+
 export function LoadManagerCategoriesJSON() {
   return window['go']['main']['App']['LoadManagerCategoriesJSON']();
 }
@@ -34,8 +46,16 @@ export function LoadManagerGamesJSON() {
   return window['go']['main']['App']['LoadManagerGamesJSON']();
 }
 
+export function LoadManagerLaunchStatsJSON() {
+  return window['go']['main']['App']['LoadManagerLaunchStatsJSON']();
+}
+
 export function LoadManagerLinksJSON() {
   return window['go']['main']['App']['LoadManagerLinksJSON']();
+}
+
+export function LoadManagerPopularJSON() {
+  return window['go']['main']['App']['LoadManagerPopularJSON']();
 }
 
 export function LoadManagerQuickAccessJSON() {
@@ -52,6 +72,10 @@ export function LoadManagerTagsJSON() {
 
 export function ReadManagerImageDataURL(arg1) {
   return window['go']['main']['App']['ReadManagerImageDataURL'](arg1);
+}
+
+export function RecordGameLaunch(arg1) {
+  return window['go']['main']['App']['RecordGameLaunch'](arg1);
 }
 
 export function ShowNativeMessage(arg1, arg2) {

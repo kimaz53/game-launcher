@@ -575,7 +575,9 @@ export function AppShell({ children }: PropsWithChildren) {
     <div className="flex h-screen w-screen overflow-hidden bg-theme-app text-theme-text">
       <aside className="flex w-[220px] shrink-0 flex-col border-r border-theme-border bg-theme-sidebar shadow-[inset_-1px_0_0_rgba(0,0,0,0.04)]">
         <div className="wails-drag border-b border-theme-border px-3 py-3">
-          <div className="text-[15px] font-semibold leading-tight tracking-tight text-theme-text">Game Manager</div>
+          <div className="font-display text-[15px] font-semibold leading-tight tracking-tight text-theme-text">
+            Game Manager
+          </div>
           <div className="mt-0.5 text-xs text-theme-muted">Library &amp; settings</div>
         </div>
 

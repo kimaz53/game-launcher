@@ -1,63 +1,96 @@
 import Head from 'next/head'
+import type { LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  ChevronDown,
+  ArrowRightFromLine,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Download,
   FolderOpen,
   Gamepad2,
   LayoutGrid,
-  Minus,
-  ArrowRight,
+  Library,
+  PanelRight,
+  Play,
   Search,
+  ShoppingBag,
+  Tags,
+  Users,
   X,
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '../components/ui/hover-card'
 import { Badge } from '../components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu'
 import { Input } from '../components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '../components/ui/command'
 import {
   GetClientIdentityJSON,
   GetComputerName,
   GetWindowsStartupStatus,
-  LaunchGame,
+  LaunchGameBlocking,
+  LaunchGameWithPID,
   LoadManagerCategoriesJSON,
   LoadManagerClientsJSON,
   LoadManagerGamesJSON,
   LoadManagerLinksJSON,
   LoadManagerQuickAccessJSON,
+  LoadManagerLaunchStatsJSON,
+  LoadManagerPopularJSON,
   LoadManagerSettingsJSON,
-  ReadManagerImageDataURL,
+  LoadManagerTagsJSON,
+  IsProcessRunning,
+  RecordGameLaunch,
 } from '../wailsjs/wailsjs/go/main/App'
 import { BrowserOpenURL, Quit, WindowMinimise } from '../wailsjs/wailsjs/runtime/runtime'
 import { cn } from '../lib/utils'
+import clickSoundUrl from '../audio/click.wav'
+import dingSoundUrl from '../audio/ding.wav'
 
 type ManagerGame = {
   id: number
   name: string
   exePath?: string
+  /** If set, controls which "launch path" field the client uses. */
+  launchType?: 'exe' | 'script'
+  /** Optional BAT/CMD/PowerShell script used when `launchType === 'script'`. */
+  scriptPath?: string
+  /** Optional BAT/CMD script to run before the main game launcher. */
+  preLaunchScriptPath?: string
   args?: string
   category: string
   tags: string[]
   coverRelPath?: string
+  /** IGDB screenshot_big for popular strip */
+  popularImageRelPath?: string
   exeIconRelPath?: string
   /** Lowercased IPs; empty = visible to all clients */
   allowedClientIps?: string[]
+  igdbGameId?: number
+  igdbSummary?: string
+  igdbStoryline?: string
+  igdbReleaseSec?: number
+  igdbGenres?: string[]
+  igdbTrailerYouTubeId?: string
+  igdbScreenshotUrls?: string[]
 }
 
 type ManagerClient = { name: string; ip: string }
@@ -80,14 +113,17 @@ type ManagerSettings = {
   gameOrder?: 'A-Z' | 'Z-A'
   whenLaunchingGame?: 'minimized' | 'normal' | 'exit'
   gameIconSize?: IconSize
-  categoryPosition?: string
   /** Default true when unset */
   showCategoryIcons?: boolean
-  quickAccessPosition?: string
-  tagsPosition?: string
   showTags?: boolean
   showQuickAccess?: boolean
   showQuickAccessTitle?: boolean
+  /** Popular strip under header row in main column */
+  showPopularStrip?: boolean
+  /** Absolute path to popular.json or folder containing it (diskless / network) */
+  popularDataPath?: string
+  /** Right panel: IGDB / simple game details (default on) */
+  showGameDetailsSidebar?: boolean
   showFooter?: boolean
   runningText?: string
   backgroundImage?: string
@@ -158,39 +194,33 @@ function parseManagerLinksJson(json: string): ManagerLink[] {
   }
 }
 
-function HeaderLinkButton({ link }: { link: ManagerLink }) {
-  const [iconSrc, setIconSrc] = useState('')
+/** HTTP URL served by game-client's Wails asset handler from the manager data dir (avoids base64 in JS). */
+function managerImageAssetUrl(relPath: string): string {
+  const p = relPath.trim().replace(/\\/g, '/')
+  if (!p) return ''
+  return `/manager-img?p=${encodeURIComponent(p)}`
+}
 
-  useEffect(() => {
-    const p = link.icon?.trim()
-    if (!p) {
-      setIconSrc('')
-      return
-    }
-    let cancelled = false
-    void ReadManagerImageDataURL(p).then((d) => {
-      if (!cancelled) setIconSrc(d || '')
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [link.icon])
+function HeaderLinkButton({ link }: { link: ManagerLink }) {
+  const p = link.icon?.trim()
+  const iconSrc = p ? managerImageAssetUrl(p) : ''
 
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
-      size="sm"
-      className="flex h-8 max-w-[min(12rem,40vw)] shrink-0 flex-row items-center gap-1.5 px-2.5 text-xs font-medium text-theme-text hover:bg-theme-card/80 focus-visible:ring-1 focus-visible:ring-theme-primary"
+      className="wails-no-drag flex max-w-[min(7.5rem,26vw)] shrink-0 items-center gap-1.5 rounded-full border border-white/[0.07] bg-transparent px-2.5 py-1 text-[11px] font-medium text-theme-muted transition-colors hover:border-white/[0.13] hover:bg-white/[0.04] hover:text-theme-text focus-visible:outline focus-visible:ring-2 focus-visible:ring-theme-primary/35"
       title={`${link.label} — ${link.url}`}
       onClick={() => BrowserOpenURL(link.url)}
     >
       {iconSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={iconSrc} alt="" className="h-4 w-4 shrink-0 object-contain" aria-hidden />
-      ) : null}
+        <img src={iconSrc} alt="" className="h-3 w-3 shrink-0 rounded-sm object-contain" aria-hidden />
+      ) : (
+        // <span className="h-3 w-3 shrink-0 rounded-sm bg-theme-muted/80" aria-hidden />
+        null
+      )}
       <span className="min-w-0 truncate">{link.label}</span>
-    </Button>
+    </button>
   )
 }
 
@@ -213,13 +243,76 @@ function parseManagerGame(raw: unknown): ManagerGame {
     id: Number(r.id) || 0,
     name: String(r.name ?? ''),
     exePath: r.exePath != null ? String(r.exePath) : undefined,
+    scriptPath: r.scriptPath != null ? String(r.scriptPath) : undefined,
+    preLaunchScriptPath:
+      r.preLaunchScriptPath != null ? String(r.preLaunchScriptPath) : undefined,
+    launchType: (() => {
+      const raw = r.launchType != null ? String(r.launchType) : ''
+      if (raw === 'script') return 'script'
+      if (raw === 'exe') return 'exe'
+
+      const scriptTrim = (r.scriptPath != null ? String(r.scriptPath) : '').trim()
+      if (scriptTrim) return 'script'
+
+      const exeTrim = (r.exePath != null ? String(r.exePath) : '').trim().toLowerCase()
+      if (exeTrim.endsWith('.bat') || exeTrim.endsWith('.cmd') || exeTrim.endsWith('.ps1')) return 'script'
+
+      return 'exe'
+    })(),
     args: r.args != null ? String(r.args) : undefined,
     category: String(r.category ?? ''),
     tags,
     coverRelPath: r.coverRelPath != null ? String(r.coverRelPath) : undefined,
+    popularImageRelPath:
+      r.popularImageRelPath != null ? String(r.popularImageRelPath) : undefined,
     exeIconRelPath: r.exeIconRelPath != null ? String(r.exeIconRelPath) : undefined,
     allowedClientIps: parseAllowedClientIps(r.allowedClientIps),
+    igdbGameId:
+      r.igdbGameId != null && !Number.isNaN(Number(r.igdbGameId)) ? Number(r.igdbGameId) : undefined,
+    igdbSummary: r.igdbSummary != null ? String(r.igdbSummary) : undefined,
+    igdbStoryline: r.igdbStoryline != null ? String(r.igdbStoryline) : undefined,
+    igdbReleaseSec:
+      r.igdbReleaseSec != null && !Number.isNaN(Number(r.igdbReleaseSec))
+        ? Number(r.igdbReleaseSec)
+        : undefined,
+    igdbGenres: Array.isArray(r.igdbGenres)
+      ? r.igdbGenres.map(String).filter((s) => s.trim())
+      : undefined,
+    igdbTrailerYouTubeId:
+      r.igdbTrailerYouTubeId != null ? String(r.igdbTrailerYouTubeId) : undefined,
+    igdbScreenshotUrls: Array.isArray(r.igdbScreenshotUrls)
+      ? r.igdbScreenshotUrls.map(String).filter((s) => s.trim())
+      : undefined,
   }
+}
+
+function managerGameHasIgdbMeta(g: ManagerGame): boolean {
+  return (
+    (g.igdbGameId ?? 0) > 0 ||
+    !!(g.igdbSummary?.trim() || g.igdbStoryline?.trim()) ||
+    !!(g.igdbTrailerYouTubeId?.trim()) ||
+    (g.igdbScreenshotUrls?.length ?? 0) > 0 ||
+    (g.igdbGenres?.length ?? 0) > 0
+  )
+}
+
+function formatIgdbReleaseSec(sec: number | undefined): string {
+  if (sec == null || !Number.isFinite(sec)) return ''
+  try {
+    return new Date(sec * 1000).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return ''
+  }
+}
+
+function pathBasename(p: string): string {
+  const t = p.trim().replace(/\\/g, '/')
+  const i = t.lastIndexOf('/')
+  return i >= 0 ? t.slice(i + 1) : t
 }
 
 function parseManagerClients(json: string): ManagerClient[] {
@@ -287,9 +380,21 @@ function isGameVisibleToClient(
   return false
 }
 
-const imageCache = new Map<string, string>()
-const categoryIconCache = new Map<string, string>()
 type ThemeAppearance = 'dark' | 'light'
+
+type WailsWindowChrome = {
+  WindowSetLightTheme?: () => void
+  WindowSetDarkTheme?: () => void
+}
+
+function syncWailsWindowChrome(appearance?: ThemeAppearance) {
+  if (typeof window === 'undefined') return
+  const rt = (window as unknown as { runtime?: WailsWindowChrome }).runtime
+  const mode: ThemeAppearance = appearance === 'light' ? 'light' : 'dark'
+  if (mode === 'light') rt?.WindowSetLightTheme?.()
+  else rt?.WindowSetDarkTheme?.()
+}
+
 type ThemePalette = {
   appBackground: string
   panel: string
@@ -611,342 +716,47 @@ function parseLayoutPosition(value: string | undefined, fallback: string): { edg
   return { edge, sub }
 }
 
-function categoryRailMainAlignClass(sub: string): string {
-  switch (sub) {
-    case 'center':
-      return 'justify-center'
-    case 'lower':
-      return 'justify-end'
-    default:
-      return 'justify-start'
-  }
-}
-
-/** Outer flex alignment for top/bottom strips (e.g. quick access row), not category tab pills. */
-function horizontalStripJustifyClass(sub: string): string {
-  switch (sub) {
-    case 'center':
-      return 'justify-center'
-    case 'right':
-      return 'justify-end'
-    default:
-      return 'justify-start'
-  }
-}
-
-function verticalSlotSelfAlignClass(sub: string): string {
-  switch (sub) {
-    case 'center':
-      return 'self-center'
-    case 'lower':
-      return 'self-end'
-    default:
-      return 'self-start'
-  }
-}
-
-function categoryTabRowClass(tabAlign: 'bar' | 'left' | 'right'): string {
-  switch (tabAlign) {
-    case 'left':
-      return 'flex w-full min-w-0 items-center justify-start gap-2'
-    case 'right':
-      return 'flex w-full min-w-0 items-center justify-end gap-2'
-    default:
-      return 'flex min-w-0 items-center gap-2'
-  }
-}
-
 function CategoryTabIcon({ relPath }: { relPath?: string }) {
-  const [src, setSrc] = useState<string | null>(null)
+  const p = relPath?.trim()
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    let cancelled = false
-    const p = relPath?.trim()
-    if (!p) {
-      setSrc(null)
-      return
-    }
-    const cached = categoryIconCache.get(p)
-    if (cached) {
-      setSrc(cached)
-      return
-    }
-    void ReadManagerImageDataURL(p).then((data) => {
-      if (cancelled || !data) return
-      categoryIconCache.set(p, data)
-      setSrc(data)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [relPath])
+    setFailed(false)
+  }, [p])
 
-  const p = relPath?.trim()
-  if (!p) {
+  if (!p || failed) {
     return <FolderOpen className="h-4 w-4 shrink-0 text-theme-muted" aria-hidden />
   }
-  if (!src) {
-    return <FolderOpen className="h-4 w-4 shrink-0 text-theme-muted opacity-50" aria-hidden />
-  }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt="" className="h-4 w-4 shrink-0 rounded object-cover" />
+    <img
+      src={managerImageAssetUrl(p)}
+      alt=""
+      className="h-4 w-4 shrink-0 rounded object-cover"
+      onError={() => setFailed(true)}
+    />
   )
 }
 
-function CategoryTabLabel({
-  tab,
-  tabAlign,
-  showIcons,
-}: {
-  tab: CategoryTabItem
-  tabAlign: 'bar' | 'left' | 'right'
-  showIcons: boolean
-}) {
-  return (
-    <span className={categoryTabRowClass(tabAlign)}>
-      {showIcons ? (
-        tab.key === 'ALL' ? (
-          <LayoutGrid className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-        ) : (
-          <CategoryTabIcon relPath={tab.iconRelPath} />
-        )
-      ) : null}
-      <span className="truncate">{tab.label}</span>
-    </span>
-  )
+function playUiSound(audio: HTMLAudioElement | null) {
+  if (!audio) return
+  audio.currentTime = 0
+  void audio.play().catch(() => { })
 }
 
-function tabKeyAttr(key: string): string {
-  return encodeURIComponent(key).replace(/%/g, '_')
-}
-
-/** Category rail: stable box model, launcher-style glass + pills; horizontal bar scrolls + "More" when crowded. */
-function LauncherCategoryTabs({
-  tabItems,
-  activeTab,
-  onSelect,
-  direction,
-  tabAlign,
-  showIcons,
-  justifyClass,
-  barAlign = 'left',
-  columnMaxHeightPx,
-}: {
-  tabItems: CategoryTabItem[]
-  activeTab: string
-  onSelect: (key: string) => void
-  direction: 'row' | 'column'
-  tabAlign: 'bar' | 'left' | 'right'
-  showIcons: boolean
-  /** Legacy: column rail outer flex alignment (optional). */
-  justifyClass?: string
-  /** Horizontal bar only: tab strip alignment; `right` uses right-to-left order. */
-  barAlign?: 'left' | 'center' | 'right'
-  /** Column rail only: max height for scrollable panel (px). */
-  columnMaxHeightPx?: number
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(false)
-  const [tabsOverflow, setTabsOverflow] = useState(false)
-
-  const updateScrollHints = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const maxScroll = el.scrollWidth - el.clientWidth
-    const overflow = maxScroll > 2
-    setTabsOverflow(overflow)
-    if (!overflow) {
-      setCanScrollLeft(false)
-      setCanScrollRight(false)
-      return
-    }
-    setCanScrollLeft(el.scrollLeft > 4)
-    setCanScrollRight(el.scrollLeft < maxScroll - 4)
-  }, [])
-
-  useLayoutEffect(() => {
-    updateScrollHints()
-    const t = window.setTimeout(() => updateScrollHints(), 0)
-    return () => window.clearTimeout(t)
-  }, [tabItems, barAlign, updateScrollHints])
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => updateScrollHints())
-    ro.observe(el)
-    for (const child of Array.from(el.children)) {
-      ro.observe(child as Element)
-    }
-    el.addEventListener('scroll', updateScrollHints, { passive: true })
-    return () => {
-      ro.disconnect()
-      el.removeEventListener('scroll', updateScrollHints)
-    }
-  }, [tabItems, barAlign, updateScrollHints])
-
-  useEffect(() => {
-    if (direction !== 'row') return
-    const el = scrollRef.current
-    if (!el) return
-    const attr = tabKeyAttr(activeTab)
-    const node = el.querySelector(`[data-cat-tab="${attr}"]`) as HTMLElement | null
-    node?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
-  }, [activeTab, direction, tabItems])
-
-  const scrollByDir = (delta: number) => {
-    scrollRef.current?.scrollBy({ left: delta, behavior: 'smooth' })
-  }
-
-  const panel = cn(
-    'rounded-xl border border-white/10 bg-theme-sidebar/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl',
-    'p-1',
-    direction === 'column' && 'min-w-[10.5rem] max-w-[16rem]',
-  )
-
-  const columnListClass = 'flex w-full flex-col gap-1'
-
-  const tabPills = tabItems.map((tab) => {
-    const active = activeTab === tab.key
-    return (
-      <button
-        key={tab.key}
-        type="button"
-        role="tab"
-        data-cat-tab={tabKeyAttr(tab.key)}
-        aria-selected={active}
-        onClick={() => onSelect(tab.key)}
-        className={cn(
-          'inline-flex min-h-8 shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200',
-          'border border-transparent',
-          direction === 'column' && 'w-full',
-          tabAlign === 'right' && direction === 'column' && 'justify-end text-right',
-          tabAlign === 'left' && direction === 'column' && 'justify-start text-left',
-          active
-            ? 'bg-theme-primary text-theme-text shadow-[0_0_0_1px_rgba(255,255,255,0.12)] ring-2 ring-theme-primary/35'
-            : 'text-theme-muted hover:bg-theme-card/60 hover:text-theme-text',
-          'outline-theme-primary focus-visible:outline focus-visible:outline-theme-primary',
-        )}
-      >
-        <CategoryTabLabel tab={tab} tabAlign={tabAlign} showIcons={showIcons} />
-      </button>
-    )
-  })
-
-  if (direction === 'column') {
-    return (
-      <div className={cn('mb-3 flex gap-2', justifyClass)}>
-        <div
-          className={cn(
-            panel,
-            columnListClass,
-            'max-h-[min(52vh,28rem)] overflow-y-auto overflow-x-hidden [scrollbar-width:thin]',
-          )}
-          style={columnMaxHeightPx ? { maxHeight: `${columnMaxHeightPx}px` } : undefined}
-          role="tablist"
-          aria-label="Game categories"
-        >
-          {tabPills}
-        </div>
-      </div>
-    )
-  }
-
-  const showArrows = canScrollLeft || canScrollRight
-  const align = barAlign
-
-  return (
-    <div className="flex min-w-0 flex-nowrap items-center justify-start gap-1">
-      {showArrows ? (
-        <button
-          type="button"
-          aria-label="Scroll categories left"
-          disabled={!canScrollLeft}
-          onClick={() => scrollByDir(-200)}
-          className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-theme-text shadow-sm backdrop-blur-md transition-opacity',
-            !canScrollLeft && 'pointer-events-none opacity-30',
-          )}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-      ) : null}
-
-      <div
-        ref={scrollRef}
-        className={cn(
-          panel,
-          'min-w-0 flex-1 overflow-x-auto overflow-y-hidden scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-        )}
-        role="tablist"
-        aria-label="Game categories"
-      >
-        {align === 'left' ? (
-          <div className="inline-flex min-w-0 flex-nowrap items-stretch gap-1">{tabPills}</div>
-        ) : (
-          <div
-            className={cn(
-              'flex min-w-full flex-nowrap items-stretch',
-              align === 'center' && 'justify-center',
-              align === 'right' && 'justify-end',
-            )}
-          >
-            <div
-              className={cn(
-                'inline-flex min-w-0 flex-nowrap items-stretch gap-1',
-                align === 'right' && 'flex-row-reverse',
-              )}
-            >
-              {tabPills}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {showArrows ? (
-        <button
-          type="button"
-          aria-label="Scroll categories right"
-          disabled={!canScrollRight}
-          onClick={() => scrollByDir(200)}
-          className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-theme-card/50 text-theme-text shadow-sm backdrop-blur-md transition-opacity',
-            !canScrollRight && 'pointer-events-none opacity-30',
-          )}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      ) : null}
-
-      {tabsOverflow && tabItems.length > 1 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-theme-card/55 px-2 text-xs text-theme-muted shadow-sm backdrop-blur-md outline-none hover:bg-theme-card/80 hover:text-theme-text focus-visible:ring-2 focus-visible:ring-theme-primary/40"
-              title="All categories"
-              aria-label="More categories"
-            >
-              <span className="hidden sm:inline">More</span>
-              <ChevronDown className="h-4 w-4 shrink-0" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[14rem]">
-            <DropdownMenuRadioGroup value={activeTab} onValueChange={onSelect}>
-              {tabItems.map((tab) => (
-                <DropdownMenuRadioItem key={tab.key} value={tab.key}>
-                  <CategoryTabLabel tab={tab} tabAlign="left" showIcons={showIcons} />
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-    </div>
-  )
-}
+const UI_SOUND_CLICK_SELECTOR = [
+  'button',
+  'a[href]',
+  '[role="button"]',
+  '[role="tab"]',
+  '[role="menuitem"]',
+  '[role="menuitemradio"]',
+  '[role="menuitemcheckbox"]',
+  'input[type="checkbox"]',
+  'input[type="radio"]',
+  'label',
+].join(', ')
 
 function tagPosClass(pos: string): string {
   const { edge, sub } = parseLayoutPosition(pos, 'top-left')
@@ -987,76 +797,73 @@ function GameArtwork({
   tagsPosition,
   showTags,
   className,
+  quickAccess,
+  /** When true (library grid), width follows the tile column instead of fixed poster sizes. */
+  fillTile,
 }: {
   game: ManagerGame
   iconSize: IconSize
   tagsPosition: string
   showTags: boolean
   className?: string
+  quickAccess?: boolean
+  fillTile?: boolean
 }) {
-  const [src, setSrc] = useState('')
-
   const coverTrim = game.coverRelPath?.trim()
   const exeTrim = game.exeIconRelPath?.trim()
+  const relPath =
+    iconSize === 'small' ? exeTrim : coverTrim || exeTrim || ''
+  const src = relPath ? managerImageAssetUrl(relPath) : ''
+  const [imgFailed, setImgFailed] = useState(false)
+
+  useEffect(() => {
+    setImgFailed(false)
+  }, [src])
 
   const usesCoverArt =
     iconSize !== 'small' && !!coverTrim
-
-  useEffect(() => {
-    let cancelled = false
-    async function run() {
-      const relPath =
-        iconSize === 'small'
-          ? exeTrim
-          : coverTrim || exeTrim || undefined
-      if (!relPath) {
-        setSrc('')
-        return
-      }
-      const cached = imageCache.get(relPath)
-      if (cached) {
-        setSrc(cached)
-        return
-      }
-      const data = await ReadManagerImageDataURL(relPath)
-      if (cancelled) return
-      if (data) imageCache.set(relPath, data)
-      setSrc(data || '')
-    }
-    void run()
-    return () => {
-      cancelled = true
-    }
-  }, [coverTrim, exeTrim, iconSize])
 
   const cls =
     iconSize === 'small'
       ? 'aspect-square size-10 shrink-0 !bg-transparent !border-none'
       : iconSize === 'large'
-        ? 'h-[220px] w-[160px]'
-        : 'h-[180px] w-[132px]'
+        ? fillTile
+          ? 'h-[150px] w-full max-w-full min-w-0'
+          : 'h-[220px] w-[160px]'
+        : fillTile
+          ? 'h-[130px] w-full max-w-full min-w-0'
+          : 'h-[180px] w-[132px]'
 
   const containerClass = cn(
-    'rounded-xl border border-white/10 bg-theme-sidebar/90 shadow-inner flex items-center justify-center overflow-hidden ring-1 ring-black/20',
+    'flex items-center justify-center overflow-hidden',
+    iconSize === 'small' ? 'rounded-xl' : fillTile ? '' : '',
     cls,
     className,
   )
 
-  const coverImgClass = 'h-full w-full object-cover'
-  const iconImgClass = cn('shrink-0', iconOnlyImageClass(iconSize))
+  const coverImgClass = cn('h-full w-full object-cover', iconSize !== 'small' && 'brightness-[0.97] contrast-[1.02]')
+  const iconFillsTile = !!fillTile && iconSize !== 'small'
+  const iconImgClass = iconFillsTile
+    ? 'h-full w-full object-contain object-center'
+    : cn('shrink-0', iconOnlyImageClass(iconSize))
 
-  const rootWrap = cn('relative', iconSize === 'small' && 'shrink-0')
+  const rootWrap = cn(
+    'relative',
+    iconSize === 'small' && 'shrink-0',
+    fillTile && iconSize !== 'small' && 'w-full min-w-0 max-w-full',
+  )
 
-  if (src) {
+  if (src && !imgFailed) {
     return (
       <div className={rootWrap}>
-        <div className={cn(containerClass, iconSize === 'small' && 'ring-0 shadow-none border-none')}>
+        <div className={cn(containerClass, quickAccess && '!ring-0 shadow-none border-none outline-none')}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
             alt={game.name}
             className={usesCoverArt ? coverImgClass : iconImgClass}
             draggable={false}
+            onError={() => setImgFailed(true)}
           />
         </div>
         {showTags && game.tags?.length ? (
@@ -1090,7 +897,332 @@ function GameArtwork({
   )
 }
 
+function GameTileTitle({ name, selected }: { name: string; selected: boolean }) {
+  return (
+    <div className="flex h-[34px] w-full min-w-0 items-center justify-center">
+      <span
+        className={cn(
+          'line-clamp-2 w-full min-w-0 max-w-full whitespace-normal break-words px-1 text-center font-display text-[11px] font-semibold leading-snug tracking-wide',
+          selected ? 'text-theme-primary' : 'text-theme-text',
+        )}
+        title={name}
+      >
+        {name}
+      </span>
+    </div>
+  )
+}
+
+function NavRow({ icon: Icon, label, active }: { icon: LucideIcon; label: string; active?: boolean }) {
+  return (
+    <div
+      className={cn(
+        'flex w-full items-center gap-2.5 rounded-[10px] border px-3.5 py-2 text-left text-xs font-medium transition-colors',
+        active
+          ? 'border-theme-primary/18 bg-theme-primary/12 text-theme-primary'
+          : 'border-transparent text-theme-muted',
+      )}
+      aria-current={active ? 'page' : undefined}
+    >
+      <Icon className={cn('h-[15px] w-[15px] shrink-0', active ? 'opacity-100' : 'opacity-70')} aria-hidden />
+      {label}
+    </div>
+  )
+}
+
+function parsePopularGameIds(json: string): number[] {
+  try {
+    const o = JSON.parse(json) as { gameIds?: unknown; ids?: unknown }
+    const arr = o.gameIds ?? o.ids
+    if (!Array.isArray(arr)) return []
+    return arr.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
+  } catch {
+    return []
+  }
+}
+
+/** launch-stats.json: { "opens": { "12": 47 } } — launch counts per game id (this PC / shared folder). */
+function parseLaunchOpens(json: string): Map<number, number> {
+  const m = new Map<number, number>()
+  try {
+    const o = JSON.parse(json) as { opens?: Record<string, unknown> }
+    if (!o.opens || typeof o.opens !== 'object') return m
+    for (const [k, v] of Object.entries(o.opens)) {
+      const id = Number(k)
+      const n = typeof v === 'number' ? v : Number(v)
+      if (Number.isFinite(id) && id > 0 && Number.isFinite(n) && n >= 0) m.set(id, Math.floor(n))
+    }
+  } catch {
+    /* ignore */
+  }
+  return m
+}
+
+/** Popular strip art: IGDB `t_screenshot_big` only (`popularImageRelPath`), framed 16:9. */
+function PopularPopArt({ game }: { game: ManagerGame }) {
+  const relPath = (game.popularImageRelPath ?? '').trim()
+  const src = relPath ? managerImageAssetUrl(relPath) : ''
+  const [imgFailed, setImgFailed] = useState(false)
+
+  useEffect(() => {
+    setImgFailed(false)
+  }, [src])
+
+  const frameClass =
+    'relative h-full w-full overflow-hidden rounded-t-[14px] bg-theme-card'
+
+  if (src && !imgFailed) {
+    return (
+      <div className={frameClass}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt=""
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setImgFailed(true)}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        frameClass,
+        'flex items-center justify-center font-display text-[clamp(1.25rem,4vw,1.65rem)] font-black text-theme-muted/35',
+      )}
+    >
+      {game.name.slice(0, 1).toUpperCase()}
+    </div>
+  )
+}
+
+function TagHoverChip({ tag }: { tag: string }) {
+  // Remove the isTruncated logic entirely — always show the hover
+
+  const chipEl = (
+    <span className="truncate max-w-[5.2rem] rounded px-1.5 py-0.5 text-[9px] text-theme-muted bg-white/[0.05]">
+      {tag}
+    </span>
+  )
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger asChild>{chipEl}</HoverCardTrigger>
+      <HoverCardContent side="top" align="center" className="w-fit max-w-[14rem] text-theme-text">
+        {tag}
+      </HoverCardContent>
+    </HoverCard>
+  )
+}
+
+function GameDetailsSidebar({
+  game,
+  isLightMode,
+  onCollapse,
+  onPlay,
+}: {
+  game: ManagerGame | null
+  isLightMode: boolean
+  onCollapse: () => void
+  onPlay: (game: ManagerGame) => void
+}) {
+  const hasIgdb = game ? managerGameHasIgdbMeta(game) : false
+  const coverRel = game
+    ? ((game.coverRelPath ?? '').trim() || (game.exeIconRelPath ?? '').trim())
+    : ''
+  const coverSrc = coverRel ? managerImageAssetUrl(coverRel) : ''
+
+  return (
+    <aside
+      data-details-panel
+      className={cn(
+        '[grid-area:detail] flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-white/[0.07]',
+        isLightMode ? 'bg-theme-sidebar/95' : 'bg-theme-sidebar/90',
+      )}
+    >
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-white/[0.07] px-3">
+        <span className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-theme-muted/80">
+          Details
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="wails-no-drag rounded-md p-1 text-theme-muted transition-colors hover:bg-white/[0.06] hover:text-theme-text disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!game}
+            onClick={() => {
+              if (!game) return
+              onPlay(game)
+            }}
+            aria-label="Play selected game"
+          >
+            <Play className="h-4 w-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="wails-no-drag rounded-md p-1 text-theme-muted transition-colors hover:bg-white/[0.06] hover:text-theme-text"
+            onClick={onCollapse}
+            aria-label="Hide details panel"
+          >
+            <ArrowRightFromLine className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 [scrollbar-width:thin]">
+        {!game ? (
+          <p className="text-xs leading-relaxed text-theme-muted">
+            Select a game in the library to see trailer, description, and other metadata here.
+          </p>
+        ) : hasIgdb ? (
+          <>
+            <div>
+              <h2 className="font-display text-sm font-bold leading-snug text-theme-text">{game.name}</h2>
+              {(game.igdbGameId ?? 0) > 0 ? (
+                <div className="mt-1 text-[10px] text-theme-muted">
+                  IGDB · id {game.igdbGameId}
+                  {formatIgdbReleaseSec(game.igdbReleaseSec) ? (
+                    <span> · {formatIgdbReleaseSec(game.igdbReleaseSec)}</span>
+                  ) : null}
+                </div>
+              ) : formatIgdbReleaseSec(game.igdbReleaseSec) ? (
+                <div className="mt-1 text-[10px] text-theme-muted">
+                  {formatIgdbReleaseSec(game.igdbReleaseSec)}
+                </div>
+              ) : null}
+            </div>
+            {game.igdbScreenshotUrls && game.igdbScreenshotUrls.length > 0 ? (
+              <div>
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-theme-muted">
+                  Screenshots
+                </div>
+                <div className="flex max-h-36 gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+                  {game.igdbScreenshotUrls.map((url) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={url}
+                      src={url}
+                      alt=""
+                      draggable={false}
+                      className="h-32 w-auto max-w-[min(100%,12rem)] shrink-0 rounded-lg border border-white/[0.08] object-cover"
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {(game.igdbTrailerYouTubeId ?? '').trim() ? (
+              <div>
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-theme-muted">
+                  Trailer
+                </div>
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-white/[0.08] bg-black">
+                  <iframe
+                    title={`Trailer — ${game.name}`}
+                    className="absolute inset-0 h-full w-full"
+                    src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent((game.igdbTrailerYouTubeId ?? '').trim())}`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            ) : null}
+            {game.igdbGenres && game.igdbGenres.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {game.igdbGenres.map((g) => (
+                  <span
+                    key={g}
+                    className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] text-theme-muted"
+                  >
+                    {g}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {(game.igdbSummary ?? '').trim() ? (
+              <p className="text-xs leading-relaxed text-theme-muted">{game.igdbSummary!.trim()}</p>
+            ) : null}
+            {(game.igdbStoryline ?? '').trim() &&
+              (game.igdbStoryline ?? '').trim() !== (game.igdbSummary ?? '').trim() ? (
+              <p className="text-xs leading-relaxed text-theme-muted/90">{game.igdbStoryline!.trim()}</p>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className="flex gap-3">
+              {coverSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={coverSrc}
+                  alt=""
+                  draggable={false}
+                  className="h-20 w-14 shrink-0 rounded-lg border border-white/[0.08] object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-20 w-14 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-theme-card font-display text-lg font-bold text-theme-muted/40"
+                  aria-hidden
+                >
+                  {game.name.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h2 className="font-display text-sm font-bold leading-snug text-theme-text">{game.name}</h2>
+                <p className="mt-1 text-[10px] text-theme-muted">Custom entry — no IGDB metadata stored.</p>
+              </div>
+            </div>
+            {(game.category ?? '').trim() ? (
+              <div>
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-theme-muted">
+                  Categories
+                </div>
+                <p className="text-xs text-theme-text/90">{game.category}</p>
+              </div>
+            ) : null}
+            {game.tags && game.tags.length > 0 ? (
+              <div>
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-theme-muted">Tags</div>
+                <div className="flex flex-wrap gap-1">
+                  {game.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] text-theme-muted"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-theme-muted">
+                Launch
+              </div>
+              <p className="break-all font-mono text-[11px] text-theme-muted">
+                {game.launchType === 'script'
+                  ? (game.scriptPath ?? '').trim() || '—'
+                  : (game.exePath ?? '').trim() || '—'}
+              </p>
+              {(game.preLaunchScriptPath ?? '').trim() ? (
+                <p className="mt-1 break-all font-mono text-[10px] text-theme-muted/80">
+                  Pre-launch: {pathBasename(game.preLaunchScriptPath ?? '')}
+                </p>
+              ) : null}
+              {(game.args ?? '').trim() ? (
+                <p className="mt-1 text-[10px] text-theme-muted">
+                  <span className="font-semibold text-theme-muted">Args:</span> {game.args}
+                </p>
+              ) : null}
+            </div>
+          </>
+        )}
+      </div>
+    </aside>
+  )
+}
+
 export default function Home() {
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
   const [games, setGames] = useState<ManagerGame[]>([])
   const [managerClients, setManagerClients] = useState<ManagerClient[]>([])
   const [clientIdentity, setClientIdentity] = useState<{ hostname: string; ipv4: string[] } | null>(null)
@@ -1099,7 +1231,6 @@ export default function Home() {
   const [settings, setSettings] = useState<ManagerSettings>({})
   const [activeTab, setActiveTab] = useState('ALL')
   const [searchInput, setSearchInput] = useState('')
-  const [committedSearch, setCommittedSearch] = useState('')
   const [computerName, setComputerName] = useState('COMPUTER')
   const [backgroundImageSrc, setBackgroundImageSrc] = useState('')
   const [logoImageSrc, setLogoImageSrc] = useState('')
@@ -1108,18 +1239,107 @@ export default function Home() {
   const [bgImageLoaded, setBgImageLoaded] = useState(false)
   const [logoImageLoaded, setLogoImageLoaded] = useState(false)
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
+  const [detailPanelOpen, setDetailPanelOpen] = useState(true)
+  const [quickAccessSeeAllOpen, setQuickAccessSeeAllOpen] = useState(false)
+  const quickAccessScrollRef = useRef<HTMLDivElement | null>(null)
   const [launchDialog, setLaunchDialog] = useState<{
     title: string
     message: string
     iconSrc?: string
     gameName?: string
   } | null>(null)
+  const [alreadyRunningDialogGame, setAlreadyRunningDialogGame] = useState<ManagerGame | null>(null)
+  const [tagPopoverOpen, setTagPopoverOpen] = useState(false)
+  const runningGamePidsRef = useRef<Map<number, number>>(new Map())
   const [windowsStartupStatus, setWindowsStartupStatus] = useState<'on' | 'off' | ''>('')
   const [headerLinks, setHeaderLinks] = useState<ManagerLink[]>([])
+  const [popularRawJson, setPopularRawJson] = useState('{}')
+  const [launchStatsJson, setLaunchStatsJson] = useState('{}')
   const libraryGridRef = useRef<HTMLDivElement | null>(null)
   const [libraryGridHeightPx, setLibraryGridHeightPx] = useState<number | null>(null)
   const [libraryGridWidthPx, setLibraryGridWidthPx] = useState<number | null>(null)
   const [libraryGridScrollTop, setLibraryGridScrollTop] = useState(0)
+
+  const clickAudioRef = useRef<HTMLAudioElement | null>(null)
+  const dingAudioRef = useRef<HTMLAudioElement | null>(null)
+  const lastDingGameIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const clickA = new Audio(clickSoundUrl)
+    const dingA = new Audio(dingSoundUrl)
+    clickA.preload = 'auto'
+    dingA.preload = 'auto'
+    clickAudioRef.current = clickA
+    dingAudioRef.current = dingA
+    return () => {
+      clickAudioRef.current = null
+      dingAudioRef.current = null
+    }
+  }, [])
+
+  const saveRunningGamePids = useCallback(() => {
+    try {
+      const obj: Record<string, number> = {}
+      runningGamePidsRef.current.forEach((pid, gameId) => {
+        if (gameId > 0 && pid > 0) obj[String(gameId)] = pid
+      })
+      localStorage.setItem('ezjr.runningGamePids', JSON.stringify(obj))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function hydrate() {
+      try {
+        const raw = localStorage.getItem('ezjr.runningGamePids') || '{}'
+        const parsed = JSON.parse(raw) as Record<string, unknown>
+        const entries = Object.entries(parsed)
+          .map(([k, v]) => [Number(k), typeof v === 'number' ? v : Number(v)] as const)
+          .filter(([gid, pid]) => Number.isFinite(gid) && gid > 0 && Number.isFinite(pid) && pid > 0)
+
+        const next = new Map<number, number>()
+        for (const [gid, pid] of entries) {
+          // eslint-disable-next-line no-await-in-loop
+          const running = await IsProcessRunning(pid)
+          if (running) next.set(gid, pid)
+        }
+        if (!cancelled) {
+          runningGamePidsRef.current = next
+          saveRunningGamePids()
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    void hydrate()
+    return () => {
+      cancelled = true
+    }
+  }, [saveRunningGamePids])
+
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      if (e.button !== 0) return
+      const t = e.target
+      if (!(t instanceof Element)) return
+      if (!t.closest(UI_SOUND_CLICK_SELECTOR)) return
+      playUiSound(clickAudioRef.current)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [])
+
+  const onGameHoverSound = useCallback((gameId: number) => {
+    if (lastDingGameIdRef.current === gameId) return
+    lastDingGameIdRef.current = gameId
+    playUiSound(dingAudioRef.current)
+  }, [])
+
+  const onGameHoverSoundEnd = useCallback(() => {
+    lastDingGameIdRef.current = null
+  }, [])
 
   useEffect(() => {
     void GetWindowsStartupStatus()
@@ -1149,6 +1369,10 @@ export default function Home() {
       const t = e.target
       if (!(t instanceof Element)) return
       if (t.closest('[data-game-tile]')) return
+      if (t.closest('[data-details-panel]')) return
+      if (t.closest('[data-quick-access-modal]')) return
+      if (t.closest('[data-hover-card-content]')) return
+
       setSelectedGameId(null)
     }
     document.addEventListener('click', onClickCapture, true)
@@ -1161,7 +1385,18 @@ export default function Home() {
       setJsonLoaded(false)
       setBgImageLoaded(false)
       setLogoImageLoaded(false)
-      const [gamesJson, categoriesJson, quickJson, settingsJson, clientsJson, identityJson, linksJson] = await Promise.all([
+      const [
+        gamesJson,
+        categoriesJson,
+        quickJson,
+        settingsJson,
+        clientsJson,
+        identityJson,
+        linksJson,
+        popularJson,
+        launchStats,
+        tagsJson,
+      ] = await Promise.all([
         LoadManagerGamesJSON(),
         LoadManagerCategoriesJSON(),
         LoadManagerQuickAccessJSON(),
@@ -1169,6 +1404,9 @@ export default function Home() {
         LoadManagerClientsJSON(),
         GetClientIdentityJSON(),
         LoadManagerLinksJSON(),
+        LoadManagerPopularJSON(),
+        LoadManagerLaunchStatsJSON(),
+        LoadManagerTagsJSON(),
       ])
       void GetComputerName().then((n) => {
         if (!cancelled && n?.trim()) setComputerName(n.trim())
@@ -1211,16 +1449,42 @@ export default function Home() {
 
       setHeaderLinks(parseManagerLinksJson(linksJson))
 
+      setPopularRawJson(typeof popularJson === 'string' && popularJson.trim() ? popularJson : '{}')
+      setLaunchStatsJson(typeof launchStats === 'string' && launchStats.trim() ? launchStats : '{}')
+
+      try {
+        const parsed = JSON.parse(tagsJson) as unknown
+        let arr: unknown[] = []
+        if (Array.isArray(parsed)) {
+          arr = parsed
+        } else if (parsed && typeof parsed === 'object') {
+          const maybe = (parsed as { tags?: unknown }).tags
+          if (Array.isArray(maybe)) arr = maybe
+        }
+
+        const normalized: string[] = arr.map((x: unknown) => String(x).trim()).filter(Boolean)
+        const uniq = Array.from(new Set(normalized)).sort((a, b) =>
+          a.localeCompare(b, undefined, { sensitivity: 'base' })
+        )
+        setAvailableTags(uniq)
+      } catch {
+        setAvailableTags([])
+      }
+
       try {
         const parsedSettings = JSON.parse(settingsJson) as ManagerSettings
         setSettings(parsedSettings && typeof parsedSettings === 'object' ? parsedSettings : {})
         if (typeof window !== 'undefined') {
           const s = parsedSettings && typeof parsedSettings === 'object' ? parsedSettings : {}
           applyTheme(s.themeFamilyId, s.themeAppearance)
+          syncWailsWindowChrome(s.themeAppearance)
         }
       } catch {
         setSettings({})
-        if (typeof window !== 'undefined') applyTheme('vs-blue', 'dark')
+        if (typeof window !== 'undefined') {
+          applyTheme('vs-blue', 'dark')
+          syncWailsWindowChrome('dark')
+        }
       }
 
       // At this point, the "base" JSON is ready; background/logo image effects will flip their loaded flags next.
@@ -1234,21 +1498,28 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false
-    async function run() {
-      setBgImageLoaded(false)
-      const relPath = settings.backgroundImage?.trim()
-      if (!relPath) {
-        setBackgroundImageSrc('')
-        setBgImageLoaded(true)
-        return
-      }
-      const data = await ReadManagerImageDataURL(relPath)
+    setBgImageLoaded(false)
+    const relPath = settings.backgroundImage?.trim()
+    if (!relPath) {
+      setBackgroundImageSrc('')
+      setBgImageLoaded(true)
+      return
+    }
+    const url = managerImageAssetUrl(relPath)
+    const img = new Image()
+    img.onload = () => {
       if (!cancelled) {
-        setBackgroundImageSrc(data || '')
+        setBackgroundImageSrc(url)
         setBgImageLoaded(true)
       }
     }
-    void run()
+    img.onerror = () => {
+      if (!cancelled) {
+        setBackgroundImageSrc('')
+        setBgImageLoaded(true)
+      }
+    }
+    img.src = url
     return () => {
       cancelled = true
     }
@@ -1256,21 +1527,28 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false
-    async function run() {
-      setLogoImageLoaded(false)
-      const relPath = settings.logoImage?.trim()
-      if (!relPath) {
-        setLogoImageSrc('')
-        setLogoImageLoaded(true)
-        return
-      }
-      const data = await ReadManagerImageDataURL(relPath)
+    setLogoImageLoaded(false)
+    const relPath = settings.logoImage?.trim()
+    if (!relPath) {
+      setLogoImageSrc('')
+      setLogoImageLoaded(true)
+      return
+    }
+    const url = managerImageAssetUrl(relPath)
+    const img = new Image()
+    img.onload = () => {
       if (!cancelled) {
-        setLogoImageSrc(data || '')
+        setLogoImageSrc(url)
         setLogoImageLoaded(true)
       }
     }
-    void run()
+    img.onerror = () => {
+      if (!cancelled) {
+        setLogoImageSrc('')
+        setLogoImageLoaded(true)
+      }
+    }
+    img.src = url
     return () => {
       cancelled = true
     }
@@ -1278,15 +1556,19 @@ export default function Home() {
 
   const iconSize: IconSize = settings.gameIconSize === 'small' || settings.gameIconSize === 'large' ? settings.gameIconSize : 'medium'
   const sortOrder = settings.gameOrder === 'Z-A' ? 'Z-A' : 'A-Z'
-  const shopName = settings.shopName?.trim() || 'EZJR Menu'
-  const categoryLayout = parseLayoutPosition(settings.categoryPosition, 'top-left')
-  const quickLayout = parseLayoutPosition(settings.quickAccessPosition, 'right-center')
-  const tagsPosition = normalizeLayoutPosition(settings.tagsPosition, 'top-left')
+  const shopName = settings.shopName?.trim() || 'EZJR Game Client'
+  /** Sidebar tiles use fixed tag layout; legacy settings.tagsPosition is ignored. */
+  const tagsPosition = 'top-left'
   const showTags = settings.showTags !== false
   const showCategoryIcons = settings.showCategoryIcons !== false
   const showQuickAccess = settings.showQuickAccess !== false
   const showQuickAccessTitle = settings.showQuickAccessTitle !== false
+  const showPopularStrip = settings.showPopularStrip !== false
+  const showGameDetailsSidebar = settings.showGameDetailsSidebar !== false
+  const detailFeatureEnabled = showGameDetailsSidebar
+  const detailColumnActive = detailFeatureEnabled && detailPanelOpen
   const showFooter = settings.showFooter !== false
+  const isLightMode = settings.themeAppearance === 'light'
   const whenLaunchingMode: 'minimized' | 'normal' | 'exit' =
     settings.whenLaunchingGame === 'minimized' ||
       settings.whenLaunchingGame === 'normal' ||
@@ -1294,24 +1576,22 @@ export default function Home() {
       ? settings.whenLaunchingGame
       : 'normal'
 
-  function commitSearch() {
-    setCommittedSearch(searchInput)
-  }
-  const quickIsLeft = quickLayout.edge === 'left'
-  const quickIsRight = quickLayout.edge === 'right'
-  const quickIsStackedTop = quickLayout.edge === 'top'
-  const quickIsStackedBottom = quickLayout.edge === 'bottom'
-  const quickIsStacked = quickIsStackedTop || quickIsStackedBottom
-
-  const quickSlotAlignClass =
-    quickIsStackedTop || quickIsStackedBottom
-      ? horizontalStripJustifyClass(quickLayout.sub)
-      : verticalSlotSelfAlignClass(quickLayout.sub)
-
   const visibleGames = useMemo(
     () => games.filter((g) => isGameVisibleToClient(g, clientIdentity, managerClients)),
     [games, clientIdentity, managerClients],
   )
+
+  const allTags = useMemo(() => {
+    if (availableTags.length > 0) return availableTags
+    const uniq = new Set<string>()
+    for (const g of visibleGames) {
+      for (const t of g.tags ?? []) {
+        const tt = String(t).trim()
+        if (tt) uniq.add(tt)
+      }
+    }
+    return Array.from(uniq).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  }, [availableTags, visibleGames])
 
   const tabItems = useMemo((): CategoryTabItem[] => {
     const items: CategoryTabItem[] = [{ key: 'ALL', label: 'ALL' }]
@@ -1341,11 +1621,15 @@ export default function Home() {
   }, [activeTab, tabItems])
 
   const filteredGames = useMemo(() => {
-    const query = committedSearch.trim().toLowerCase()
+    const query = searchInput.trim().toLowerCase()
     const base = visibleGames.filter((g) => {
       if (activeTab !== 'ALL') {
         const cats = parseMulti(g.category)
         if (!cats.includes(activeTab)) return false
+      }
+      if (selectedTags.length > 0) {
+        const set = new Set((g.tags ?? []).map((t) => String(t)))
+        if (!selectedTags.some((t) => set.has(t))) return false
       }
       if (!query) return true
       return `${g.name} ${g.category} ${g.tags?.join(' ') ?? ''}`.toLowerCase().includes(query)
@@ -1353,7 +1637,42 @@ export default function Home() {
 
     const sorted = [...base].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
     return sortOrder === 'Z-A' ? sorted.reverse() : sorted
-  }, [visibleGames, activeTab, committedSearch, sortOrder])
+  }, [visibleGames, activeTab, searchInput, sortOrder, selectedTags])
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: visibleGames.length }
+    for (const g of visibleGames) {
+      for (const part of parseMulti(g.category)) {
+        counts[part] = (counts[part] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [visibleGames])
+
+  const popularIdOrder = useMemo(() => parsePopularGameIds(popularRawJson), [popularRawJson])
+
+  const launchCounts = useMemo(() => parseLaunchOpens(launchStatsJson), [launchStatsJson])
+
+  const popularGames = useMemo(() => {
+    const map = new Map<number, ManagerGame>()
+    visibleGames.forEach((g) => map.set(g.id, g))
+    const ordered: ManagerGame[] = []
+    for (const id of popularIdOrder) {
+      const g = map.get(id)
+      if (g) ordered.push(g)
+    }
+    const byOpensThenName = [...visibleGames].sort((a, b) => {
+      const oa = launchCounts.get(a.id) ?? 0
+      const ob = launchCounts.get(b.id) ?? 0
+      if (ob !== oa) return ob - oa
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    })
+    for (const g of byOpensThenName) {
+      if (ordered.length >= 5) break
+      if (!ordered.some((x) => x.id === g.id)) ordered.push(g)
+    }
+    return ordered.slice(0, 5)
+  }, [visibleGames, popularIdOrder, launchCounts])
 
   const quickAccessGames = useMemo(() => {
     const map = new Map<number, ManagerGame>()
@@ -1361,26 +1680,36 @@ export default function Home() {
     return quickAccessIds.map((id) => map.get(id)).filter(Boolean) as ManagerGame[]
   }, [visibleGames, quickAccessIds])
 
+  const selectedGame = useMemo(() => {
+    if (selectedGameId == null) return null
+    return visibleGames.find((g) => g.id === selectedGameId) ?? null
+  }, [visibleGames, selectedGameId])
+
+  const scrollQuickAccess = useCallback((dir: 'left' | 'right') => {
+    const el = quickAccessScrollRef.current
+    if (!el) return
+    el.scrollBy({ left: dir === 'left' ? -140 : 140, behavior: 'smooth' })
+  }, [])
+
   /** In-app only: native MessageBox/TaskDialog in fullscreen WebView2 can crash the host with no visible prompt. */
-  async function showLaunchError(title: string, message: string, game?: ManagerGame) {
+  function showLaunchError(title: string, message: string, game?: ManagerGame) {
     let iconSrc: string | undefined
-    let gameName = game?.name?.trim()
+    const gameName = game?.name?.trim()
     if (game) {
       const rel = (game.exeIconRelPath ?? '').trim() || (game.coverRelPath ?? '').trim()
-      if (rel) {
-        const cached = imageCache.get(rel)
-        if (cached) {
-          iconSrc = cached
-        } else {
-          const data = await ReadManagerImageDataURL(rel)
-          if (data) {
-            imageCache.set(rel, data)
-            iconSrc = data
-          }
-        }
-      }
+      if (rel) iconSrc = managerImageAssetUrl(rel)
     }
     setLaunchDialog({ title, message, iconSrc, gameName })
+  }
+
+  async function recordLaunchStats(gameId: number) {
+    try {
+      await RecordGameLaunch(gameId)
+      const j = await LoadManagerLaunchStatsJSON()
+      setLaunchStatsJson(j?.trim() ? j : '{}')
+    } catch {
+      /* ignore: read-only share, permission, etc. */
+    }
   }
 
   /** Runs only after a URL/game was started successfully — never on failed launch or missing path. */
@@ -1392,26 +1721,59 @@ export default function Home() {
     }
   }
 
-  async function handleLaunchGame(game: ManagerGame) {
+  async function handleLaunchGame(game: ManagerGame, opts?: { force?: boolean }) {
     try {
-      const exePath = (game.exePath ?? '').trim()
-      if (!exePath) {
+      if (!opts?.force) {
+        const pid = runningGamePidsRef.current.get(game.id)
+        if (pid && pid > 0) {
+          const running = await IsProcessRunning(pid)
+          if (running) {
+            setAlreadyRunningDialogGame(game)
+            return
+          }
+          runningGamePidsRef.current.delete(game.id)
+          saveRunningGamePids()
+        }
+      }
+
+      const preLaunchPath = (game.preLaunchScriptPath ?? '').trim()
+      const launchType: 'exe' | 'script' = game.launchType === 'script' ? 'script' : 'exe'
+      // Back-compat: older configs might store a .bat/.cmd/.ps1 path in `exePath`
+      // without having `scriptPath` populated.
+      const launchPathRaw = launchType === 'script' ? (game.scriptPath ?? game.exePath) : game.exePath
+      const launchPath = (launchPathRaw ?? '').trim()
+
+      if (!launchPath) {
         await showLaunchError(
           'Unable to launch game',
-          `"${game.name}" has no launch path configured. Add a launch path in Game Manager.`,
+          `"${game.name}" has no ${launchType === 'script' ? 'script' : 'launch'} path configured. Add it in Game Manager.`,
           game
         )
         return
       }
 
-      if (/^https?:\/\//i.test(exePath)) {
-        BrowserOpenURL(exePath)
+      if (/^https?:\/\//i.test(launchPath)) {
+        BrowserOpenURL(launchPath)
+        void recordLaunchStats(game.id)
         applyAfterLaunchBehavior()
         return
       }
 
       try {
-        await LaunchGame(exePath, game.args ?? '')
+        if (preLaunchPath) {
+          if (/^https?:\/\//i.test(preLaunchPath)) {
+            BrowserOpenURL(preLaunchPath)
+          } else {
+            await LaunchGameBlocking(preLaunchPath, '')
+          }
+        }
+
+        const pid = await LaunchGameWithPID(launchPath, game.args ?? '')
+        if (pid && pid > 0) {
+          runningGamePidsRef.current.set(game.id, pid)
+          saveRunningGamePids()
+        }
+        void recordLaunchStats(game.id)
         applyAfterLaunchBehavior()
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to launch the selected game.'
@@ -1437,21 +1799,17 @@ export default function Home() {
     day: 'numeric',
   });
 
-  const libraryShellClass =
-    'rounded-2xl border border-white/10 bg-theme-sidebar/30 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.55)] backdrop-blur-xl ring-1 ring-white/5'
-  const quickDockClass =
-    'rounded-2xl border border-white/10 bg-gradient-to-b from-theme-card/50 to-theme-sidebar/40 p-2 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] backdrop-blur-xl ring-1 ring-white/5'
-
   const shouldShowLoader =
     !jsonLoaded ||
     (settings.backgroundImage?.trim() ? !bgImageLoaded : false) ||
     (settings.logoImage?.trim() ? !logoImageLoaded : false)
 
   const loaderMessage = !jsonLoaded ? 'Loading menu data…' : 'Loading images…'
+  const activeTabLabel = activeTab === 'ALL' ? 'All Games' : activeTab
 
   return (
     <div
-      className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-theme-app bg-cover bg-center bg-no-repeat font-[system-ui,'Segoe_UI',-apple-system,sans-serif] text-theme-text antialiased selection:bg-theme-primary/30"
+      className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-theme-app bg-cover bg-center bg-no-repeat font-sans text-[13px] text-theme-text antialiased selection:bg-theme-primary/35"
       style={backgroundImageSrc ? { backgroundImage: `url("${backgroundImageSrc}")` } : undefined}
     >
       <Head>
@@ -1465,7 +1823,12 @@ export default function Home() {
           aria-live="polite"
           aria-busy="true"
         >
-          <div className="w-full max-w-[28rem] rounded-2xl border border-white/10 bg-theme-sidebar/45 p-6 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+          <div className={cn(
+            'w-full max-w-[28rem] rounded-2xl border p-6 backdrop-blur-xl',
+            isLightMode
+              ? 'border-black/8 bg-theme-sidebar/60 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.18)]'
+              : 'border-white/10 bg-theme-sidebar/45 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.55)]',
+          )}>
             <div className="flex items-center gap-3">
               <div
                 className="h-10 w-10 animate-spin rounded-full border-4 border-theme-muted/40 border-t-theme-primary/80"
@@ -1483,396 +1846,606 @@ export default function Home() {
       ) : null}
 
       {backgroundImageSrc ? (
-        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-theme-app/85 via-theme-app/70 to-theme-app/95 backdrop-blur-[2px]" />
+        <div className={cn(
+          'pointer-events-none absolute inset-0 z-0 bg-gradient-to-br',
+          isLightMode
+            ? 'from-theme-app/40 via-theme-app/28 to-theme-app/55 backdrop-blur-[8px]'
+            : 'from-theme-app/88 via-theme-app/72 to-theme-app/[0.97] backdrop-blur-[3px]',
+        )} />
       ) : (
-        <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-theme-app via-theme-sidebar/20 to-theme-app" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgb(var(--color-primary-button)/0.14),transparent_55%),linear-gradient(180deg,rgb(var(--color-app-background))_0%,rgb(var(--color-sidebar))_45%,rgb(var(--color-app-background))_100%)]" />
       )}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.35)_100%)]" />
-
-      <header className="relative z-10 mx-3 mt-2 flex min-h-[3.25rem] shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-theme-sidebar/45 px-3 py-2 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.4)] backdrop-blur-xl md:mx-4 md:mt-3 md:min-h-[3.5rem] md:gap-4 md:px-4">
-        <div className="flex min-w-0 flex-1 items-center justify-start md:flex-none">
-          {logoImageSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img draggable={false} src={logoImageSrc} alt={shopName} className="max-h-14 w-auto max-w-[min(280px,40vw)] object-contain drop-shadow-md md:max-h-16" />
-          ) : (
-            <div className="truncate bg-gradient-to-r from-theme-text to-theme-muted bg-clip-text text-2xl font-bold tracking-[0.2em] text-transparent md:text-3xl">
-              {shopName}
-            </div>
-          )}
-        </div>
-        <div className="relative flex min-w-0 max-w-md flex-1 items-center gap-2">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-theme-muted" aria-hidden />
-          <Input
-            className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-theme-card/80 pl-9 pr-3 text-sm shadow-inner transition-[box-shadow,background] placeholder:text-theme-muted focus-visible:border-theme-primary/40 focus-visible:ring-2 focus-visible:ring-theme-primary/25"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                commitSearch()
-              }
-            }}
-            placeholder="Search your library…"
-            aria-label="Search games"
-          />
-          <Button
-            type="button"
-            size="icon"
-            className="h-10 w-10 shrink-0 rounded-xl shadow-md transition-transform hover:scale-[1.03] active:scale-[0.98] focus-visible:ring-1 focus-visible:ring-theme-primary"
-            aria-label="Apply search"
-            onClick={() => commitSearch()}
-          >
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
-          {headerLinks.map((link) => (
-            <HeaderLinkButton key={link.id} link={link} />
-          ))}
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="rounded-full text-theme-text hover:bg-theme-card/80 focus-visible:ring-1 focus-visible:ring-theme-primary"
-              aria-label="Minimize"
-              onClick={() => WindowMinimise()}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="rounded-full text-theme-text hover:bg-theme-error/90 hover:text-theme-text focus-visible:ring-1 focus-visible:ring-theme-primary"
-              aria-label="Close"
-              onClick={() => Quit()}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <div className={cn(
+        'pointer-events-none absolute inset-0 z-0',
+        isLightMode
+          ? 'bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,0.08),transparent_50%),radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.1)_100%)]'
+          : 'bg-[radial-gradient(ellipse_at_80%_0%,rgb(var(--color-primary-button)/0.12),transparent_42%),radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]',
+      )} />
+      <div
+        className="pointer-events-none absolute inset-0 z-0 opacity-[0.035] [background-image:repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(255,255,255,0.06)_2px,rgba(255,255,255,0.06)_3px)]"
+        aria-hidden
+      />
 
       <div
         className={cn(
-          'relative z-10 mx-3 mb-2 mt-2 flex min-h-0 flex-1 md:mx-4 gap-2',
-          quickIsStacked && 'flex-col',
+          'relative z-10 grid min-h-0 min-w-0 w-full flex-1',
+          showFooter
+            ? detailColumnActive
+              ? "[grid-template-rows:52px_1fr_minmax(34px,auto)] [grid-template-areas:'header_header_header'_'sidebar_main_detail'_'footer_footer_footer']"
+              : "[grid-template-rows:52px_1fr_minmax(34px,auto)] [grid-template-areas:'header_header'_'sidebar_main'_'footer_footer']"
+            : detailColumnActive
+              ? "[grid-template-rows:52px_1fr] [grid-template-areas:'header_header_header'_'sidebar_main_detail']"
+              : "[grid-template-rows:52px_1fr] [grid-template-areas:'header_header'_'sidebar_main']",
+          detailColumnActive ? 'grid-cols-[220px_1fr_minmax(260px,320px)]' : 'grid-cols-[220px_1fr]',
         )}
       >
-        {showQuickAccess && quickIsStackedTop && quickAccessGames.length > 0 ? (
-          <div className={cn('flex w-full px-5', quickSlotAlignClass, quickDockClass)}>
-            <aside className="flex items-center gap-2">
-              {showQuickAccessTitle ? (
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
-              ) : null}
-              <div className={cn('flex max-w-full overflow-x-auto p-1 items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
-                {quickAccessGames.map((g) => (
-                  <Button
-                    key={g.id}
-                    type="button"
-                    variant="ghost"
-                    className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
-                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
-                    )}
-                    aria-label={g.name}
-                    // onClick={() => setSelectedGameId(g.id)}
-                    onDoubleClick={() => void handleLaunchGame(g)}
-                  >
-                    <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
-                  </Button>
-                ))}
-              </div>
-            </aside>
-          </div>
-        ) : null}
-
-        {showQuickAccess && quickIsLeft && quickAccessGames.length > 0 ? (
-          <div className={cn('order-[-1] flex min-h-0 self-stretch flex-col', quickSlotAlignClass, quickDockClass)}>
-            <aside className="flex min-h-0 flex-1 flex-col items-center gap-2">
-              {showQuickAccessTitle ? (
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
-              ) : null}
-              <div
-                className={cn('flex w-full min-h-0 flex-col p-1 overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
-                style={
-                  libraryGridHeightPx != null && libraryGridHeightPx > 0
-                    ? { height: libraryGridHeightPx, maxHeight: libraryGridHeightPx }
-                    : undefined
-                }
-              >
-                {quickAccessGames.map((g) => (
-                  <Button
-                    key={g.id}
-                    type="button"
-                    variant="ghost"
-                    className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
-                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
-                    )}
-                    aria-label={g.name}
-                    // onClick={() => setSelectedGameId(g.id)}
-                    onDoubleClick={() => void handleLaunchGame(g)}
-                  >
-                    <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
-                  </Button>
-                ))}
-              </div>
-            </aside>
-          </div>
-        ) : null}
-
-        <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [scrollbar-width:thin]">
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-            {categoryLayout.edge === 'top' ? (
-              <LauncherCategoryTabs
-                tabItems={tabItems}
-                activeTab={activeTab}
-                onSelect={setActiveTab}
-                direction="row"
-                tabAlign="bar"
-                showIcons={showCategoryIcons}
-                barAlign={categoryLayout.sub as 'left' | 'center' | 'right'}
+        <header
+          className={cn(
+            'wails-drag [grid-area:header] flex h-[52px] min-h-[52px] shrink-0 items-center gap-3 border-b border-white/[0.07] px-4',
+            isLightMode ? 'bg-theme-sidebar/90' : 'bg-theme-sidebar/95',
+          )}
+        >
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {logoImageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                draggable={false}
+                src={logoImageSrc}
+                alt={shopName}
+                className="max-h-9 w-auto max-w-[min(220px,36vw)] object-contain"
               />
+            ) : (
+              <>
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full bg-theme-primary shadow-[0_0_8px] shadow-theme-primary/70"
+                  aria-hidden
+                />
+                <span className="font-display truncate text-xl font-extrabold tracking-[0.04em] text-theme-text">
+                  {shopName}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="wails-no-drag mx-auto flex min-w-0 flex-1 items-center justify-center">
+            <div className="relative w-full min-w-0 max-w-[420px]">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-theme-muted"
+                aria-hidden
+              />
+              <Input
+                className={cn(
+                  'h-8 min-w-0 w-full rounded-full border py-0 pl-9 pr-3 text-xs transition-[box-shadow,background,border-color] placeholder:text-theme-muted focus-visible:border-theme-primary/40 focus-visible:ring-1 focus-visible:ring-theme-primary/30',
+                  isLightMode
+                    ? 'border-black/10 bg-theme-card/75'
+                    : 'border-white/[0.07] bg-white/[0.05]',
+                )}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search games, tags, categories…"
+                aria-label="Search games"
+              />
+            </div>
+          </div>
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 md:gap-3">
+            <div className="hidden flex-wrap items-center justify-end gap-1.5 sm:flex">
+              {headerLinks.map((link) => (
+                <HeaderLinkButton key={link.id} link={link} />
+              ))}
+            </div>
+            {detailFeatureEnabled ? (
+              <button
+                type="button"
+                className={cn(
+                  'wails-no-drag flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
+                  detailPanelOpen
+                    ? 'border-theme-primary/35 bg-theme-primary/10 text-theme-primary'
+                    : 'border-white/[0.08] text-theme-muted hover:border-white/[0.12] hover:bg-white/[0.05] hover:text-theme-text',
+                )}
+                onClick={() => setDetailPanelOpen((o) => !o)}
+                aria-expanded={detailPanelOpen}
+                aria-label={detailPanelOpen ? 'Hide game details panel' : 'Show game details panel'}
+              >
+                <PanelRight className="h-4 w-4" aria-hidden />
+              </button>
             ) : null}
+          </div>
+        </header>
 
-            <div className="flex min-h-0 min-w-0 flex-1 gap-3">
-              {categoryLayout.edge === 'left' ? (
-                <div
+        <aside
+          className={cn(
+            '[grid-area:sidebar] flex min-h-0 flex-col overflow-hidden border-r border-white/[0.07]',
+            isLightMode ? 'bg-theme-sidebar/95' : 'bg-theme-sidebar/90',
+          )}
+        >
+
+          <div className="px-3 pb-1.5 pt-3.5 font-display text-[10px] font-bold uppercase tracking-[0.12em] text-theme-muted/80">
+            Categories
+          </div>
+          <div
+            className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            role="tablist"
+            aria-label="Game categories"
+          >
+            {tabItems.map((tab) => {
+              const active = activeTab === tab.key
+              const count = categoryCounts[tab.key] ?? 0
+              const label = tab.key === 'ALL' ? 'All' : tab.label
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveTab(tab.key)}
                   className={cn(
-                    'mb-0 flex min-h-0 min-w-0 flex-col flex-nowrap self-stretch',
-                    categoryRailMainAlignClass(categoryLayout.sub),
+                    'flex w-full items-center gap-2 rounded-[10px] border px-3.5 py-1.5 text-left text-xs font-medium transition-colors',
+                    'outline outline-none focus-visible:outline-2 focus-visible:outline-theme-primary/50 ring-0 outline-offset-0',
+                    active
+                      ? 'border-white/[0.13] bg-white/[0.06] font-semibold text-theme-text'
+                      : 'border-transparent text-theme-muted hover:bg-white/[0.04] hover:text-theme-text',
                   )}
                 >
-                  <LauncherCategoryTabs
-                    tabItems={tabItems}
-                    activeTab={activeTab}
-                    onSelect={setActiveTab}
-                    direction="column"
-                    tabAlign="left"
-                    showIcons={showCategoryIcons}
-                    columnMaxHeightPx={libraryGridHeightPx ?? undefined}
-                  />
+                  {showCategoryIcons ? (
+                    tab.key === 'ALL' ? (
+                      <LayoutGrid className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                    ) : (
+                      <CategoryTabIcon relPath={tab.iconRelPath} />
+                    )
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                  <span
+                    className={cn(
+                      'ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums',
+                      active ? 'bg-theme-primary/12 text-theme-primary' : 'bg-white/[0.06] text-theme-muted',
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          {showQuickAccess && quickAccessGames.length > 0 ? (
+            <>
+              <div className="mx-3 my-2 h-px bg-theme-border" aria-hidden />
+              {showQuickAccessTitle ? (
+                <div className="flex items-center justify-between gap-2 px-3 pb-1.5 pt-1">
+                  <div className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-theme-muted/80">
+                    Quick access
+                  </div>
+                  {quickAccessGames.length > 2 ? (
+                    <button
+                      type="button"
+                      className="wails-no-drag shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-medium text-theme-primary hover:bg-white/[0.06]"
+                      onClick={() => setQuickAccessSeeAllOpen(true)}
+                    >
+                      See all
+                    </button>
+                  ) : null}
+                </div>
+              ) : quickAccessGames.length > 2 ? (
+                <div className="flex justify-end px-3 pb-1 pt-1">
+                  <button
+                    type="button"
+                    className="wails-no-drag text-[9px] font-medium text-theme-primary hover:bg-white/[0.06] rounded-md px-1.5 py-0.5"
+                    onClick={() => setQuickAccessSeeAllOpen(true)}
+                  >
+                    See all
+                  </button>
                 </div>
               ) : null}
+              <div className="flex items-stretch gap-0.5 px-2 pb-3 pt-1">
+                {/* <button
+                  type="button"
+                  className="wails-no-drag flex w-7 shrink-0 items-center justify-center rounded-lg border border-transparent text-theme-muted transition-colors hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-theme-text"
+                  aria-label="Scroll quick access left"
+                  onClick={() => scrollQuickAccess('left')}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
+                </button> */}
+                <div
+                  ref={quickAccessScrollRef}
+                  className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {quickAccessGames.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      className="flex w-[52px] shrink-0 flex-col items-center gap-1 rounded-lg border border-transparent p-1 transition-colors hover:border-white/[0.08] hover:bg-white/[0.04] outline outline-none focus-visible:outline-2 focus-visible:outline-theme-primary/50 ring-0 outline-offset-0"
+                      aria-label={g.name}
+                      title={`${g.name} — Double-click to launch`}
+                      onClick={() => setSelectedGameId(g.id)}
+                      onMouseEnter={() => onGameHoverSound(g.id)}
+                      onMouseLeave={onGameHoverSoundEnd}
+                      onDoubleClick={() => void handleLaunchGame(g)}
+                    >
+                      <GameArtwork
+                        quickAccess
+                        className="!border-none !bg-transparent !shadow-none"
+                        game={g}
+                        iconSize="small"
+                        tagsPosition={tagsPosition}
+                        showTags={false}
+                      />
+                      <span className="w-full truncate text-center text-[9px] text-theme-muted">{g.name}</span>
+                    </button>
+                  ))}
+                </div>
+                {/* <button
+                  type="button"
+                  className="wails-no-drag flex w-7 shrink-0 items-center justify-center rounded-lg border border-transparent text-theme-muted transition-colors hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-theme-text"
+                  aria-label="Scroll quick access right"
+                  onClick={() => scrollQuickAccess('right')}
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </button> */}
+              </div>
+            </>
+          ) : null}
+        </aside>
 
-              <div
-                ref={libraryGridRef}
-                onScroll={(e) => setLibraryGridScrollTop((e.currentTarget as HTMLDivElement).scrollTop)}
-                className={cn(
-                  'relative min-h-0 min-w-0 flex-1 overflow-y-auto p-4 [scrollbar-width:thin] overscroll-contain',
-                  libraryShellClass,
-                )}
-              >
-                {(() => {
-                  const w = libraryGridWidthPx ?? 0
-                  const h = libraryGridHeightPx ?? 0
-                  const gapPx = 12
-                  const minTileWidthPx =
-                    iconSize === 'small' ? 90 : iconSize === 'large' ? 149 : 130
-                  const rowHeightPx =
-                    iconSize === 'small' ? 95 : iconSize === 'large' ? 275 : 235
+        <main
+          className={cn(
+            '[grid-area:main] flex min-h-0 min-w-0 flex-col overflow-hidden',
+            'bg-[radial-gradient(ellipse_60%_40%_at_70%_0%,rgb(var(--color-primary-button)/0.06),transparent_60%),radial-gradient(ellipse_40%_60%_at_0%_100%,rgba(245,158,11,0.04),transparent_50%)]',
+            isLightMode ? 'bg-theme-app/80' : 'bg-theme-app',
+          )}
+        >
+          {showPopularStrip && popularGames.length > 0 ? (
+            <div className="shrink-0 border-b border-white/[0.07] px-4 py-3.5">
+              <div className="mb-2.5 flex items-center gap-2">
+                <span className="font-display text-xs font-bold uppercase tracking-[0.1em] text-theme-muted">Popular right now</span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-theme-warning/25 bg-theme-warning/10 px-2 py-0.5 text-[10px] font-semibold text-theme-warning">
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-theme-warning" aria-hidden />
+                  Live
+                </span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto p-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+                {popularGames.map((g, i) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className="group relative flex h-[118px] w-[min(260px,72vw)] shrink-0 flex-col cursor-pointer overflow-hidden rounded-[14px] border border-white/[0.07] bg-theme-card text-left transition-all hover:-translate-y-0.5 hover:border-white/[0.13] outline outline-none focus-visible:outline-2 focus-visible:outline-theme-primary/50 ring-0"
+                    title={g.name}
+                    onClick={() => setSelectedGameId(g.id)}
+                    onDoubleClick={() => void handleLaunchGame(g)}
+                  >
+                    <div className="relative h-[70px] w-full shrink-0">
+                      <PopularPopArt game={g} />
+                      <span
+                        className={cn(
+                          'absolute left-1.5 top-1.5 rounded border border-white/10 bg-black/70 px-1.5 py-0.5 font-display text-[11px] font-extrabold text-theme-text backdrop-blur-sm',
+                          i < 3 ? 'text-theme-warning' : '',
+                        )}
+                      >
+                        #{i + 1}
+                      </span>
+                    </div>
+                    <div className="flex min-h-0 flex-1 flex-col px-2 py-1.5">
+                      <div className="mb-0.5 line-clamp-1 truncate text-[11px] font-semibold text-theme-text">
+                        {g.name}
+                      </div>
+                      <div className="mt-auto flex items-center gap-1 text-[10px] text-theme-muted">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-theme-success" aria-hidden />
+                        {(() => {
+                          const opens = launchCounts.get(g.id) ?? 0
+                          return opens > 0
+                            ? `Played ${opens > 1 ? opens : ''}${opens > 1 ? ' times' : 'once'}`
+                            : 'Not played yet'
+                        })()}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
-                  const usableWidth = Math.max(0, w - 32) // p-4 left+right
-                  const cols = Math.max(1, Math.floor((usableWidth + gapPx) / (minTileWidthPx + gapPx)))
-                  const tileWidth = Math.max(minTileWidthPx, Math.floor((usableWidth - gapPx * (cols - 1)) / cols))
-
-                  const rowCount = Math.ceil(filteredGames.length / cols)
-                  const totalHeight = rowCount * rowHeightPx
-
-                  const overscanRows = 3
-                  const startRow = Math.max(0, Math.floor(libraryGridScrollTop / rowHeightPx) - overscanRows)
-                  const endRow = Math.min(
-                    rowCount,
-                    Math.ceil((libraryGridScrollTop + h) / rowHeightPx) + overscanRows,
-                  )
-                  const startIndex = startRow * cols
-                  const endIndex = Math.min(filteredGames.length, endRow * cols)
-
-                  return (
-                    <div className="relative w-full" style={{ height: totalHeight }}>
-                      {filteredGames.slice(startIndex, endIndex).map((game, i) => {
-                        const idx = startIndex + i
-                        const row = Math.floor(idx / cols)
-                        const col = idx % cols
-                        const selected = selectedGameId === game.id
-                        return (
-                          <div
-                            key={game.id}
-                            style={{
-                              position: 'absolute',
-                              top: row * rowHeightPx,
-                              left: col * (tileWidth + gapPx),
-                              width: tileWidth,
-                              height: rowHeightPx,
-                              paddingBottom: gapPx,
-                            }}
-                          >
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              data-game-tile
-                              className={cn(
-                                'group relative flex h-auto w-full min-w-0 flex-col items-center gap-2 overflow-hidden border',
-                                'border border-white/5 bg-theme-card/20 text-inherit shadow-sm ring-1 ring-black/20 transition-all duration-200',
-                                'hover:-translate-y-0.5 hover:border-theme-primary/25 hover:bg-theme-card/45 hover:shadow-lg hover:shadow-black/30',
-                                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-app',
-                                selected &&
-                                'border-theme-primary/40 bg-theme-primary/15 shadow-lg shadow-black/25 ring-2 ring-theme-primary/35',
-                                '!rounded-xl px-0 !pb-2.5 !pt-0',
-                                iconSize == 'small' && '!pt-2'
-                              )}
-                              onClick={() => setSelectedGameId(game.id)}
-                              onDoubleClick={() => void handleLaunchGame(game)}
-                              onKeyUp={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  setSelectedGameId(game.id)
-                                  void handleLaunchGame(game)
-                                } else if (e.key === 'Escape') {
-                                  setSelectedGameId(null)
-                                }
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 py-3.5">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="font-display text-[15px] font-bold tracking-wide text-theme-text">{activeTabLabel}</span>
+              <span className="rounded-full border border-theme-primary/20 bg-theme-primary/10 px-2 py-0.5 font-display text-xs font-semibold tabular-nums text-theme-primary">
+                {filteredGames.length}
+              </span>
+              <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className={cn(
+                      'h-7 rounded-full px-2.5 text-[11px]',
+                      selectedTags.length > 0 && 'border-theme-primary/25 bg-theme-primary/10'
+                    )}
+                    aria-label="Filter by tags"
+                  >
+                    <Tags className="h-3.5 w-3.5" aria-hidden />
+                    Tags
+                    {selectedTags.length > 0 ? (
+                      <span className="ml-0.5 rounded-full bg-theme-primary/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-theme-primary">
+                        {selectedTags.length}
+                      </span>
+                    ) : null}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-0">
+                  <Command>
+                    <CommandInput placeholder="Search tags…" />
+                    <CommandList>
+                      <CommandEmpty>No tags found.</CommandEmpty>
+                      <CommandGroup heading="Tags">
+                        {allTags.map((tag) => {
+                          const selected = selectedTags.includes(tag)
+                          return (
+                            <CommandItem
+                              key={tag}
+                              onSelect={() => {
+                                setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
                               }}
                             >
+                              <span
+                                className={cn(
+                                  'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-theme-border',
+                                  selected && 'border-theme-primary/40 bg-theme-primary/15 text-theme-primary',
+                                )}
+                                aria-hidden
+                              >
+                                {selected ? <Check className="h-3 w-3" /> : null}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate">{tag}</span>
+                            </CommandItem>
+                          )
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                  {selectedTags.length > 0 ? (
+                    <div className="flex items-center justify-between border-t border-theme-border p-2">
+                      <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-xs text-theme-muted hover:bg-white/[0.06] hover:text-theme-text"
+                        onClick={() => setSelectedTags([])}
+                      >
+                        Clear
+                      </button>
+                      <span className="text-[10px] text-theme-muted">{selectedTags.length} selected</span>
+                    </div>
+                  ) : null}
+                </PopoverContent>
+              </Popover>
+              <span className="ml-auto text-[10px] text-theme-muted/90">Double-click to launch</span>
+            </div>
+            <div
+              ref={libraryGridRef}
+              onScroll={(e) => setLibraryGridScrollTop((e.currentTarget as HTMLDivElement).scrollTop)}
+              className="relative min-h-0 flex-1 p-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]"
+            >
+              {(() => {
+                const w = libraryGridWidthPx ?? 0
+                const h = libraryGridHeightPx ?? 0
+                const gapPx = 10
+                const minTileWidthPx =
+                  iconSize === 'small' ? 96 : iconSize === 'large' ? 120 : 105
+                const rowHeightPx =
+                  iconSize === 'small' ? 88 : iconSize === 'large' ? 212 : 188
+
+                const usableWidth = Math.max(0, w - 8)
+                const cols = Math.max(1, Math.floor((usableWidth + gapPx) / (minTileWidthPx + gapPx)))
+                const tileWidth = Math.max(minTileWidthPx, Math.floor((usableWidth - gapPx * (cols - 1)) / cols))
+
+                const rowCount = Math.ceil(filteredGames.length / cols)
+                const totalHeight = rowCount * rowHeightPx
+
+                const overscanRows = 3
+                const startRow = Math.max(0, Math.floor(libraryGridScrollTop / rowHeightPx) - overscanRows)
+                const endRow = Math.min(
+                  rowCount,
+                  Math.ceil((libraryGridScrollTop + h) / rowHeightPx) + overscanRows,
+                )
+                const startIndex = startRow * cols
+                const endIndex = Math.min(filteredGames.length, endRow * cols)
+
+                return (
+                  <div className="relative w-full" style={{ height: totalHeight }}>
+                    {filteredGames.slice(startIndex, endIndex).map((game, i) => {
+                      const idx = startIndex + i
+                      const row = Math.floor(idx / cols)
+                      const col = idx % cols
+                      const selected = selectedGameId === game.id
+                      const artH = iconSize === 'large' ? 150 : iconSize === 'small' ? 40 : 130
+                      return (
+                        <div
+                          key={game.id}
+                          className="tile-pop-in"
+                          style={{
+                            position: 'absolute',
+                            top: row * rowHeightPx,
+                            left: col * (tileWidth + gapPx),
+                            width: tileWidth,
+                            height: rowHeightPx,
+                            paddingBottom: gapPx,
+                            animationDelay: `${Math.min(i * 30, 400)}ms`,
+                          }}
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            data-game-tile
+                            className={cn(
+                              'group relative flex h-auto w-full min-w-0 flex-col items-stretch gap-0 overflow-hidden border !p-0',
+                              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-app',
+                              selected &&
+                              'border-theme-primary shadow-[0_0_0_1px_rgb(var(--color-primary-button)),0_8px_24px_-8px_rgb(var(--color-primary-button)/0.25)]',
+                              isLightMode
+                                ? 'border-black/[0.07] bg-theme-card/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.12)]'
+                                : 'border-white/[0.07] bg-theme-card/90 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.45)]',
+                              isLightMode
+                                ? 'hover:-translate-y-0.5 hover:border-theme-primary/30 hover:bg-theme-card/80'
+                                : 'hover:-translate-y-1 hover:border-theme-primary/30 hover:bg-theme-card hover:shadow-[0_12px_32px_rgba(0,0,0,0.5),0_0_0_1px_rgb(var(--color-primary-button)/0.1)]',
+                              'rounded-[14px]',
+                              iconSize === 'small' && 'pt-2',
+                            )}
+                            onClick={() => setSelectedGameId(game.id)}
+                            onMouseEnter={() => onGameHoverSound(game.id)}
+                            onMouseLeave={onGameHoverSoundEnd}
+                            onDoubleClick={() => void handleLaunchGame(game)}
+                            onKeyUp={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                setSelectedGameId(game.id)
+                                void handleLaunchGame(game)
+                              } else if (e.key === 'Escape') {
+                                setSelectedGameId(null)
+                              }
+                            }}
+                          >
+
+                            <div className="relative flex w-full min-w-0 max-w-full flex-col items-stretch">
+                              {showTags && game.tags?.length ? (
+                                <div className="flex flex-1 absolute left-1 top-1 z-10 gap-1 flex-wrap">
+                                  {game.tags.map((tag) => (
+                                    <span
+                                      key={tag}
+                                      className="rounded px-1.5 py-0.5 text-[9px] text-theme-text bg-theme-secondary/90"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                               <GameArtwork
+                                fillTile
                                 game={game}
                                 iconSize={iconSize}
                                 tagsPosition={tagsPosition}
-                                showTags={showTags}
+                                showTags={false}
                               />
-                              <span
-                                className={cn(
-                                  'line-clamp-2 w-full px-0.5 text-center text-xs font-normal leading-snug',
-                                  selected ? 'text-theme-primary' : 'text-theme-text',
-                                )}
-                              >
-                                {game.name}
-                              </span>
-                            </Button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
-              </div>
-
-              {categoryLayout.edge === 'right' ? (
-                <div
-                  className={cn(
-                    'mb-0 flex min-h-0 min-w-0 flex-col flex-nowrap items-end self-stretch',
-                    categoryRailMainAlignClass(categoryLayout.sub),
-                  )}
-                >
-                  <LauncherCategoryTabs
-                    tabItems={tabItems}
-                    activeTab={activeTab}
-                    onSelect={setActiveTab}
-                    direction="column"
-                    tabAlign="right"
-                    showIcons={showCategoryIcons}
-                    columnMaxHeightPx={libraryGridHeightPx ?? undefined}
-                  />
-                </div>
-              ) : null}
+                              {/* {iconSize !== 'small' ? (
+                                <div
+                                  className="pointer-events-none absolute left-0 right-0 top-0 z-[6] flex items-end justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                                  style={{ height: artH, paddingBottom: 10 }}
+                                  aria-hidden
+                                >
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                                  <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    className="pointer-events-auto relative flex h-9 w-9 items-center justify-center my-auto rounded-full bg-theme-primary text-theme-app shadow-lg transition-transform group-hover:scale-105"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedGameId(game.id)
+                                      void handleLaunchGame(game)
+                                    }}
+                                  >
+                                    <Play className="ml-0.5 h-4 w-4" strokeWidth={2.5} aria-hidden />
+                                  </button>
+                                </div>
+                              ) : null} */}
+                            </div>
+                            <div className="flex flex-1 flex-col gap-1 px-2 pb-2 pt-1.5">
+                              <GameTileTitle name={game.name} selected={selected} />
+                            </div>
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
-
-            {categoryLayout.edge === 'bottom' ? (
-              <LauncherCategoryTabs
-                tabItems={tabItems}
-                activeTab={activeTab}
-                onSelect={setActiveTab}
-                direction="row"
-                tabAlign="bar"
-                showIcons={showCategoryIcons}
-                barAlign={categoryLayout.sub as 'left' | 'center' | 'right'}
-              />
-            ) : null}
-          </main>
-        </div>
-
-        {showQuickAccess && quickIsRight && quickAccessGames.length > 0 ? (
-          <div className={cn('order-1 flex min-h-0 self-stretch flex-col', quickSlotAlignClass, quickDockClass)}>
-            <aside className="flex min-h-0 flex-1 flex-col items-center gap-2">
-              {showQuickAccessTitle ? (
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
-              ) : null}
-              <div
-                className={cn('flex w-full min-h-0 flex-col p-1 overflow-y-auto items-center gap-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}
-                style={
-                  libraryGridHeightPx != null && libraryGridHeightPx > 0
-                    ? { height: libraryGridHeightPx, maxHeight: libraryGridHeightPx }
-                    : undefined
-                }
-              >
-                {quickAccessGames.map((g) => (
-                  <Button
-                    key={g.id}
-                    type="button"
-                    variant="ghost"
-                    className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
-                      //selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 ring-1 ring-theme-primary' : ''
-                    )}
-                    aria-label={g.name}
-                    // onClick={() => setSelectedGameId(g.id)}
-                    onDoubleClick={() => void handleLaunchGame(g)}
-                  >
-                    <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
-                  </Button>
-                ))}
-              </div>
-            </aside>
           </div>
+        </main>
+        {detailColumnActive ? (
+          <GameDetailsSidebar
+            game={selectedGame}
+            isLightMode={isLightMode}
+            onCollapse={() => setDetailPanelOpen(false)}
+            onPlay={(g) => void handleLaunchGame(g)}
+          />
         ) : null}
-
-        {showQuickAccess && quickIsStackedBottom && quickAccessGames.length > 0 ? (
-          <div className={cn('flex w-full px-5', quickSlotAlignClass, quickDockClass)}>
-            <aside className="flex items-center gap-2">
-              {showQuickAccessTitle ? (
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-muted">Quick access</span>
-              ) : null}
-              <div className={cn('flex max-w-full overflow-x-auto p-1 items-center gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden')}>
-                {quickAccessGames.map((g) => (
-                  <Button
-                    key={g.id}
-                    type="button"
-                    variant="ghost"
-                    className={cn(
-                      "h-auto border-0 !p-1 hover:bg-transparent focus-visible:ring-1 focus-visible:ring-theme-primary !rounded-xl",
-                      // selectedGameId === g.id ? 'rounded-md bg-theme-primary/20 focus-visible:ring-1 focus-visible:ring-theme-primary' : ''
-                    )}
-                    aria-label={g.name}
-                    // onClick={() => setSelectedGameId(g.id)}
-                    onDoubleClick={() => void handleLaunchGame(g)}
-                  >
-                    <GameArtwork className='!bg-transparent border-none' game={g} iconSize="small" tagsPosition={tagsPosition} showTags={false} />
-                  </Button>
-                ))}
-              </div>
-            </aside>
-          </div>
+        {showFooter ? (
+          <footer
+            className={cn(
+              '[grid-area:footer] flex h-[34px] min-h-[34px] items-center gap-3 border-t border-white/[0.07] px-4 text-[11px]',
+              isLightMode ? 'bg-theme-sidebar/90' : 'bg-theme-sidebar/95',
+            )}
+          >
+            <div className="flex shrink-0 items-center gap-1.5 font-display text-xs font-bold tracking-wide text-theme-primary">
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-theme-success shadow-[0_0_6px] shadow-theme-success/80"
+                aria-hidden
+              />
+              {computerName}
+            </div>
+            <div className="h-3.5 w-px shrink-0 bg-theme-border" aria-hidden />
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <span className="launcher-footer-ticker inline-block text-theme-muted">
+                {settings.runningText?.trim() || 'Powered by EZJR'}
+              </span>
+            </div>
+            <time className="shrink-0 tabular-nums text-theme-muted" dateTime={now.toISOString()}>
+              {`${date} · ${time}`}
+            </time>
+          </footer>
         ) : null}
       </div>
 
-      {showFooter ? (
-        <footer className="relative z-10 mx-3 mb-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-theme-sidebar/40 px-3 py-2.5 text-sm shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.35)] backdrop-blur-xl md:mx-4">
-          <span className="shrink-0 text-sm font-bold tracking-wide text-theme-primary">{computerName}</span>
-
-          {/* {windowsStartupStatus ? (
-            <span className="shrink-0 text-xs text-theme-muted" title="HKCU\Software\Microsoft\Windows\CurrentVersion\Run\EZJRGameClient">
-              Startup: {windowsStartupStatus === 'on' ? 'On' : 'Off'}
-            </span>
-          ) : null} */}
-
-          <div className="flex-1 overflow-hidden whitespace-nowrap text-theme-secondary-text font-normal text-sm">
-            <span className="animate-[scrollText_20s_linear_infinite] inline-block pl-[100%]">
-              {settings.runningText?.trim() || 'Powered by EZJR'}
-            </span>
+      {quickAccessSeeAllOpen && quickAccessGames.length > 0 ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Quick access — all shortcuts">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+            aria-label="Close"
+            onClick={() => setQuickAccessSeeAllOpen(false)}
+          />
+          <div
+            className={cn(
+              'relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border shadow-2xl',
+              isLightMode
+                ? 'border-black/10 bg-theme-card/95'
+                : 'border-white/[0.1] bg-theme-sidebar/95',
+            )}
+          >
+            <div className="flex items-center justify-between border-b border-theme-border px-4 py-3">
+              <span className="font-display text-sm font-bold text-theme-text">Quick access</span>
+              <button
+                type="button"
+                className="wails-no-drag flex h-8 w-8 items-center justify-center rounded-lg text-theme-muted hover:bg-white/[0.06] hover:text-theme-text"
+                onClick={() => setQuickAccessSeeAllOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+            <div className="min-h-0 overflow-y-auto p-4 [scrollbar-width:thin]">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-3">
+                {quickAccessGames.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className="flex flex-col items-center gap-1 rounded-xl border border-transparent p-2 transition-colors hover:border-white/[0.1] hover:bg-white/[0.04] outline-none focus-visible:ring-2 focus-visible:ring-theme-primary/40"
+                    onMouseEnter={() => onGameHoverSound(g.id)}
+                    onMouseLeave={onGameHoverSoundEnd}
+                    onDoubleClick={() => {
+                      setQuickAccessSeeAllOpen(false)
+                      void handleLaunchGame(g)
+                    }}
+                  >
+                    <GameArtwork
+                      quickAccess
+                      className="!border-none !bg-transparent !shadow-none w-full max-w-[52px]"
+                      game={g}
+                      iconSize="small"
+                      tagsPosition={tagsPosition}
+                      showTags={false}
+                    />
+                    <span className="line-clamp-2 w-full text-center text-[9px] text-theme-muted">{g.name}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-4 text-center text-[10px] text-theme-muted">Double-click a game to launch.</p>
+            </div>
           </div>
-
-          <span className="ml-auto text-theme-muted text-sm font-semibold">
-            {`${date} ⋅ ${time}`}
-          </span>
-        </footer>
+        </div>
       ) : null}
 
       <AlertDialog
@@ -1909,6 +2482,62 @@ export default function Home() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction type="button">OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={alreadyRunningDialogGame !== null}
+        onOpenChange={(open) => {
+          if (!open) setAlreadyRunningDialogGame(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex gap-4 sm:items-start">
+              {(() => {
+                const g = alreadyRunningDialogGame
+                const rel = (g?.exeIconRelPath ?? '').trim() || (g?.coverRelPath ?? '').trim()
+                const iconSrc = rel ? managerImageAssetUrl(rel) : ''
+                return iconSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={iconSrc}
+                    alt={g?.name ?? ''}
+                    className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-theme-border bg-theme-sidebar"
+                    aria-hidden
+                  >
+                    <Gamepad2 className="h-7 w-7 text-theme-muted" />
+                  </div>
+                )
+              })()}
+              <div className="min-w-0 flex-1 space-y-2 text-left">
+                <AlertDialogTitle>Game is already running</AlertDialogTitle>
+                <AlertDialogDescription className="whitespace-pre-wrap">
+                  {alreadyRunningDialogGame
+                    ? `"${alreadyRunningDialogGame.name}" is already running.\n\nRun anyway?`
+                    : ''}
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                const g = alreadyRunningDialogGame
+                setAlreadyRunningDialogGame(null)
+                if (g) void handleLaunchGame(g, { force: true })
+              }}
+            >
+              Run anyway
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -11,6 +11,14 @@ export function GetWindowsStartupStatus():Promise<string>;
 
 export function Greet(arg1:string):Promise<string>;
 
+export function IGDBCredentialsConfigured():Promise<boolean>;
+
+export function IGDBEnvHintPath():Promise<string>;
+
+export function IGDBFetchGameArt(arg1:number):Promise<string>;
+
+export function IGDBSearchGames(arg1:string):Promise<string>;
+
 export function ImportCategoryIcon(arg1:string):Promise<string>;
 
 export function ImportCoverImage(arg1:string,arg2:number):Promise<string>;
@@ -18,6 +26,8 @@ export function ImportCoverImage(arg1:string,arg2:number):Promise<string>;
 export function ImportGameIcon(arg1:string):Promise<string>;
 
 export function ImportLinkIcon(arg1:string,arg2:number):Promise<string>;
+
+export function ImportPopularImage(arg1:string,arg2:number):Promise<string>;
 
 export function ImportSettingsImage(arg1:string,arg2:string):Promise<string>;
 
@@ -38,6 +48,10 @@ export function LoadTagsJSON():Promise<string>;
 export function PickExecutableFile():Promise<string>;
 
 export function PickImageFile():Promise<string>;
+
+export function PickPopularJsonFile():Promise<string>;
+
+export function PickScriptFile():Promise<string>;
 
 export function ReadImageFileDataURL(arg1:string):Promise<string>;
 

@@ -11,13 +11,23 @@ export function Greet(arg1:string):Promise<string>;
 
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
 
+export function LaunchGameBlocking(arg1:string,arg2:string):Promise<void>;
+
+export function LaunchGameWithPID(arg1:string,arg2:string):Promise<number>;
+
+export function IsProcessRunning(arg1:number):Promise<boolean>;
+
 export function LoadManagerCategoriesJSON():Promise<string>;
 
 export function LoadManagerClientsJSON():Promise<string>;
 
 export function LoadManagerGamesJSON():Promise<string>;
 
+export function LoadManagerLaunchStatsJSON():Promise<string>;
+
 export function LoadManagerLinksJSON():Promise<string>;
+
+export function LoadManagerPopularJSON():Promise<string>;
 
 export function LoadManagerQuickAccessJSON():Promise<string>;
 
@@ -26,6 +36,8 @@ export function LoadManagerSettingsJSON():Promise<string>;
 export function LoadManagerTagsJSON():Promise<string>;
 
 export function ReadManagerImageDataURL(arg1:string):Promise<string>;
+
+export function RecordGameLaunch(arg1:number):Promise<void>;
 
 export function ShowNativeMessage(arg1:string,arg2:string):Promise<void>;
 

@@ -7,6 +7,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
@@ -24,27 +25,30 @@ func main() {
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:             "Game Client",
-		Width:             0,
-		Height:            0,
-		MinWidth:          1920,
-		MinHeight:         1080,
-		MaxWidth:          0,
-		MaxHeight:         0,
-		DisableResize:     true,
-		Fullscreen:        true,
-		Frameless:         true,
+		Width:             1024,
+		Height:            768,
+		MinWidth:          1024,
+		MinHeight:         768,
+		MaxWidth:          1920,
+		MaxHeight:         1080,
+		DisableResize:     false,
+		Fullscreen:        false,
+		Frameless:         false,
 		StartHidden:       false,
 		HideWindowOnClose: false,
-		BackgroundColour:  &options.RGBA{R: 255, G: 255, B: 255, A: 255},
-		Assets:            assets,
-		Menu:              nil,
+		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 255},
+		AssetServer: &assetserver.Options{
+			Assets:  assets,
+			Handler: &managerImageHandler{app: app},
+		},
+		Menu: nil,
 		Logger:            nil,
 		LogLevel:          logger.DEBUG,
 		OnStartup:         app.startup,
 		OnDomReady:        app.domReady,
 		OnBeforeClose:     app.beforeClose,
 		OnShutdown:        app.shutdown,
-		WindowStartState:  options.Fullscreen,
+		WindowStartState:  options.Maximised,
 		Bind: []interface{}{
 			app,
 		},

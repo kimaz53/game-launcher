@@ -40,12 +40,12 @@ const AlertDialogContent = React.forwardRef<
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col gap-2 text-center sm:text-left', className)} {...props} />
+  <div className={cn('font-display flex flex-col gap-2 text-center sm:text-left', className)} {...props} />
 )
 AlertDialogHeader.displayName = 'AlertDialogHeader'
 
 const AlertDialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)} {...props} />
+  <div className={cn('font-display flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)} {...props} />
 )
 AlertDialogFooter.displayName = 'AlertDialogFooter'
 
@@ -55,7 +55,7 @@ const AlertDialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold text-theme-text', className)}
+    className={cn('font-display text-lg font-semibold text-theme-text', className)}
     {...props}
   />
 ))
@@ -67,7 +67,7 @@ const AlertDialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-theme-muted', className)}
+    className={cn('font-display text-sm text-theme-muted', className)}
     {...props}
   />
 ))
@@ -80,7 +80,7 @@ const AlertDialogAction = React.forwardRef<
   <AlertDialogPrimitive.Action
     ref={ref}
     className={cn(
-      'inline-flex h-9 items-center justify-center rounded-md bg-theme-primary px-4 text-sm font-medium text-theme-text transition-colors hover:bg-theme-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-accent disabled:pointer-events-none disabled:opacity-50',
+      'font-display inline-flex h-9 items-center justify-center rounded-md bg-theme-primary px-4 text-sm font-medium text-theme-text transition-colors hover:bg-theme-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-accent disabled:pointer-events-none disabled:opacity-50',
       className
     )}
     {...props}
@@ -95,7 +95,7 @@ const AlertDialogCancel = React.forwardRef<
   <AlertDialogPrimitive.Cancel
     ref={ref}
     className={cn(
-      'inline-flex h-9 items-center justify-center rounded-md border border-theme-border bg-theme-secondary px-4 text-sm font-medium text-theme-text hover:bg-theme-secondary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-accent disabled:pointer-events-none disabled:opacity-50',
+      'font-display inline-flex h-9 items-center justify-center rounded-md border border-theme-border bg-theme-secondary px-4 text-sm font-medium text-theme-text hover:bg-theme-secondary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-accent disabled:pointer-events-none disabled:opacity-50',
       className
     )}
     {...props}

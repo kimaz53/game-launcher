@@ -945,6 +945,23 @@ func (a *App) PickExecutableFile() string {
 	return selection
 }
 
+// PickScriptFile opens a file dialog for BAT/CMD/PowerShell scripts.
+// This is used for "run game using script/bat" launcher mode.
+func (a *App) PickScriptFile() string {
+	opts := runtime.OpenDialogOptions{
+		Title: "Select script",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Scripts (BAT/CMD/PS1)", Pattern: "*.bat;*.cmd;*.ps1;*.PS1;*.BAT;*.CMD"},
+			{DisplayName: "All files", Pattern: "*.*"},
+		},
+	}
+	selection, err := runtime.OpenFileDialog(a.ctx, opts)
+	if err != nil || selection == "" {
+		return ""
+	}
+	return selection
+}
+
 // PickImageFile opens a file dialog for an image, exe, or icon file.
 func (a *App) PickImageFile() string {
 	opts := runtime.OpenDialogOptions{
@@ -1099,6 +1116,61 @@ func (a *App) ImportCoverImage(sourcePath string, gameID int) (string, error) {
 		return "", err
 	}
 	return rel, nil
+}
+
+// ImportPopularImage copies an image into data/popular/{gameID}{ext} for the client "Popular" strip (IGDB screenshot_big).
+// Returns a path relative to data/ (e.g. "popular/12.jpg").
+func (a *App) ImportPopularImage(sourcePath string, gameID int) (string, error) {
+	if strings.TrimSpace(sourcePath) == "" {
+		return "", nil
+	}
+	dataDir, err := a.portableDataDir()
+	if err != nil {
+		return "", err
+	}
+	ext := filepath.Ext(sourcePath)
+	if ext == "" {
+		ext = ".jpg"
+	}
+	rel := filepath.ToSlash(filepath.Join("popular", fmt.Sprintf("%d%s", gameID, ext)))
+	dest := filepath.Join(dataDir, filepath.FromSlash(rel))
+
+	src, err := os.Open(sourcePath)
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return "", err
+	}
+
+	dst, err := os.Create(dest)
+	if err != nil {
+		return "", err
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", err
+	}
+	return rel, nil
+}
+
+// PickPopularJsonFile opens a file dialog to choose popular.json (e.g. on a network share).
+func (a *App) PickPopularJsonFile() string {
+	opts := runtime.OpenDialogOptions{
+		Title: "Select popular.json location",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "JSON", Pattern: "*.json;*.JSON"},
+			{DisplayName: "All files", Pattern: "*.*"},
+		},
+	}
+	selection, err := runtime.OpenFileDialog(a.ctx, opts)
+	if err != nil || selection == "" {
+		return ""
+	}
+	return selection
 }
 
 // ImportSettingsImage copies a settings asset image into data/settings/ and returns a relative path.

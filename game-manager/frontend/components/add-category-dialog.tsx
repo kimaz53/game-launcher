@@ -111,10 +111,10 @@ export function AddCategoryDialog({ open, mode = 'add', initialCategory, onOpenC
         if (!next) onOpenChange(false)
       }}
     >
-      <DialogContent className="max-w-xl border-theme-border bg-theme-sidebar p-6 text-theme-text">
+      <DialogContent className="font-display max-w-xl border-theme-border bg-theme-sidebar p-6 text-theme-text">
         <DialogHeader>
-          <DialogTitle className="text-theme-text">{mode === 'edit' ? 'Edit Category' : 'Add Category'}</DialogTitle>
-          <DialogDescription className="text-theme-muted">
+          <DialogTitle className="font-display text-theme-text">{mode === 'edit' ? 'Edit Category' : 'Add Category'}</DialogTitle>
+          <DialogDescription className="font-display text-theme-muted">
             Optional: choose an icon image for this category.
           </DialogDescription>
         </DialogHeader>
@@ -136,7 +136,7 @@ export function AddCategoryDialog({ open, mode = 'add', initialCategory, onOpenC
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={iconDataUrl} alt="Category icon preview" className="h-10 w-10 rounded-md" />
               ) : (
-                <span className="text-sm font-semibold text-theme-muted">?</span>
+                <span className="font-display text-sm font-semibold text-theme-muted">?</span>
               )}
             </div>
             <div className="flex flex-col">
@@ -151,7 +151,7 @@ export function AddCategoryDialog({ open, mode = 'add', initialCategory, onOpenC
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor={nameId} className="text-sm text-theme-muted">
+            <label htmlFor={nameId} className="font-display text-sm text-theme-muted">
               Category Name
             </label>
             <Input
@@ -169,7 +169,7 @@ export function AddCategoryDialog({ open, mode = 'add', initialCategory, onOpenC
           <Button
             type="button"
             variant="outline"
-            className="border-theme-border bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
+            className="font-display border-theme-border bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
             onClick={() => onOpenChange(false)}
           >
             Cancel

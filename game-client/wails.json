@@ -1,6 +1,6 @@
 {
   "name": "game-client",
-  "outputfilename": "Game Client",
+  "outputfilename": "Game Client v1.0.0",
   "assetdir": "frontend/out",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",

@@ -22,6 +22,22 @@ export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
 
+export function IGDBCredentialsConfigured() {
+  return window['go']['main']['App']['IGDBCredentialsConfigured']();
+}
+
+export function IGDBEnvHintPath() {
+  return window['go']['main']['App']['IGDBEnvHintPath']();
+}
+
+export function IGDBFetchGameArt(arg1) {
+  return window['go']['main']['App']['IGDBFetchGameArt'](arg1);
+}
+
+export function IGDBSearchGames(arg1) {
+  return window['go']['main']['App']['IGDBSearchGames'](arg1);
+}
+
 export function ImportCategoryIcon(arg1) {
   return window['go']['main']['App']['ImportCategoryIcon'](arg1);
 }
@@ -36,6 +52,10 @@ export function ImportGameIcon(arg1) {
 
 export function ImportLinkIcon(arg1, arg2) {
   return window['go']['main']['App']['ImportLinkIcon'](arg1, arg2);
+}
+
+export function ImportPopularImage(arg1, arg2) {
+  return window['go']['main']['App']['ImportPopularImage'](arg1, arg2);
 }
 
 export function ImportSettingsImage(arg1, arg2) {
@@ -76,6 +96,14 @@ export function PickExecutableFile() {
 
 export function PickImageFile() {
   return window['go']['main']['App']['PickImageFile']();
+}
+
+export function PickPopularJsonFile() {
+  return window['go']['main']['App']['PickPopularJsonFile']();
+}
+
+export function PickScriptFile() {
+  return window['go']['main']['App']['PickScriptFile']();
 }
 
 export function ReadImageFileDataURL(arg1) {

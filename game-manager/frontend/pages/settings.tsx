@@ -13,152 +13,10 @@ import {
   GetWindowsStartupStatus,
   ImportSettingsImage as ImportSettingsImageWails,
   PickImageFile as PickImageFileWails,
+  PickPopularJsonFile as PickPopularJsonFileWails,
   SetLaunchOnWindowsStartup,
 } from '@/wailsjs/wailsjs/go/main/App'
 import { cn } from '@/lib/utils'
-
-/**
- * Stored as `{edge}-{secondary}`:
- * - TOP/BOTTOM → `left` | `center` | `right` (e.g. `top-left`)
- * - LEFT/RIGHT → `upper` | `center` | `lower` (e.g. `left-center`)
- * Migrates older `top-upper`-style and corner keys.
- */
-type LayoutEdge = 'top' | 'bottom' | 'left' | 'right'
-
-const LEGACY_CORNER_TO_UNIFIED: Record<string, string> = {
-  'top-left': 'top-upper',
-  'top-center': 'top-center',
-  'top-right': 'top-lower',
-  'bottom-left': 'bottom-upper',
-  'bottom-center': 'bottom-center',
-  'bottom-right': 'bottom-lower',
-  'center-left': 'left-center',
-  'center-right': 'right-center',
-}
-
-const OLD_HORIZONTAL_AXIS: Record<string, string> = {
-  'top-upper': 'top-left',
-  'top-lower': 'top-right',
-  'bottom-upper': 'bottom-left',
-  'bottom-lower': 'bottom-right',
-}
-
-function tryCanonicalLayoutPosition(raw: string | undefined): string | null {
-  if (raw == null || !String(raw).trim()) return null
-  let v = String(raw).trim().toLowerCase()
-  if (LEGACY_CORNER_TO_UNIFIED[v]) v = LEGACY_CORNER_TO_UNIFIED[v]
-  if (OLD_HORIZONTAL_AXIS[v]) v = OLD_HORIZONTAL_AXIS[v]
-  if (/^(top|bottom)-(left|center|right)$/.test(v)) return v
-  if (/^(left|right)-(upper|center|lower)$/.test(v)) return v
-  return null
-}
-
-function migrateLayoutPosition(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null
-  return tryCanonicalLayoutPosition(raw)
-}
-
-function normalizeLayoutPositionValue(value: string | undefined, fallback: string): string {
-  return tryCanonicalLayoutPosition(value) ?? tryCanonicalLayoutPosition(fallback) ?? 'top-left'
-}
-
-function parseEdgeSecondary(combined: string, fallback: string): { edge: LayoutEdge; secondary: string } {
-  const migrated = normalizeLayoutPositionValue(combined, fallback)
-  const [e, s] = migrated.split('-')
-  const edge = (['top', 'bottom', 'left', 'right'].includes(e) ? e : 'top') as LayoutEdge
-  if (edge === 'top' || edge === 'bottom') {
-    const secondary = ['left', 'center', 'right'].includes(s) ? s : 'left'
-    return { edge, secondary }
-  }
-  const secondary = ['upper', 'center', 'lower'].includes(s) ? s : 'center'
-  return { edge, secondary }
-}
-
-function combineLayoutPosition(edge: LayoutEdge, secondary: string): string {
-  return `${edge}-${secondary}`
-}
-
-function mapSecondaryWhenEdgeChanges(prevEdge: LayoutEdge, nextEdge: LayoutEdge, secondary: string): string {
-  const prevH = prevEdge === 'top' || prevEdge === 'bottom'
-  const nextH = nextEdge === 'top' || nextEdge === 'bottom'
-  if (prevH === nextH) return secondary
-  if (prevH && !nextH) {
-    const m: Record<string, string> = { left: 'upper', center: 'center', right: 'lower' }
-    return m[secondary] ?? 'center'
-  }
-  const m: Record<string, string> = { upper: 'left', center: 'center', lower: 'right' }
-  return m[secondary] ?? 'center'
-}
-
-function EdgeAlignSelect({
-  idPrefix,
-  value,
-  onChange,
-  disabled,
-}: {
-  idPrefix: string
-  value: string
-  onChange: (next: string) => void
-  disabled?: boolean
-}) {
-  const { edge, secondary } = parseEdgeSecondary(value, 'top-left')
-  const isHorizontalEdge = edge === 'top' || edge === 'bottom'
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Select
-        value={edge}
-        onValueChange={(v) => {
-          const nextEdge = v as LayoutEdge
-          const nextSecondary = mapSecondaryWhenEdgeChanges(edge, nextEdge, secondary)
-          onChange(combineLayoutPosition(nextEdge, nextSecondary))
-        }}
-        disabled={disabled}
-      >
-        <SelectTrigger id={`${idPrefix}-edge`} className="min-w-[8.5rem]">
-          <SelectValue placeholder="Edge" />
-        </SelectTrigger>
-        <SelectContent align="end">
-          <SelectItem value="top">Top</SelectItem>
-          <SelectItem value="bottom">Bottom</SelectItem>
-          <SelectItem value="left">Left</SelectItem>
-          <SelectItem value="right">Right</SelectItem>
-        </SelectContent>
-      </Select>
-      {isHorizontalEdge ? (
-        <Select
-          value={secondary}
-          onValueChange={(v) => onChange(combineLayoutPosition(edge, v))}
-          disabled={disabled}
-        >
-          <SelectTrigger id={`${idPrefix}-h`} className="min-w-[8.5rem]">
-            <SelectValue placeholder="Align" />
-          </SelectTrigger>
-          <SelectContent align="end">
-            <SelectItem value="left">Left</SelectItem>
-            <SelectItem value="center">Center</SelectItem>
-            <SelectItem value="right">Right</SelectItem>
-          </SelectContent>
-        </Select>
-      ) : (
-        <Select
-          value={secondary}
-          onValueChange={(v) => onChange(combineLayoutPosition(edge, v))}
-          disabled={disabled}
-        >
-          <SelectTrigger id={`${idPrefix}-v`} className="min-w-[8.5rem]">
-            <SelectValue placeholder="Align" />
-          </SelectTrigger>
-          <SelectContent align="end">
-            <SelectItem value="upper">Upper</SelectItem>
-            <SelectItem value="center">Center</SelectItem>
-            <SelectItem value="lower">Lower</SelectItem>
-          </SelectContent>
-        </Select>
-      )}
-    </div>
-  )
-}
 
 export default function SettingsPage() {
   const [hydrated, setHydrated] = useState(false)
@@ -167,13 +25,13 @@ export default function SettingsPage() {
   const [gameOrder, setGameOrder] = useState<'A-Z' | 'Z-A'>('A-Z')
   const [whenLaunchingGame, setWhenLaunchingGame] = useState<'minimized' | 'normal' | 'exit'>('normal')
   const [gameIconSize, setGameIconSize] = useState<'small' | 'medium' | 'large'>('medium')
-  const [categoryPosition, setCategoryPosition] = useState('top-left')
   const [showCategoryIcons, setShowCategoryIcons] = useState(true)
-  const [quickAccessPosition, setQuickAccessPosition] = useState('right-center')
-  const [tagsPosition, setTagsPosition] = useState('top-left')
   const [showTags, setShowTags] = useState(true)
   const [showQuickAccess, setShowQuickAccess] = useState(true)
   const [showQuickAccessTitle, setShowQuickAccessTitle] = useState(true)
+  const [showPopularStrip, setShowPopularStrip] = useState(true)
+  const [popularDataPath, setPopularDataPath] = useState('')
+  const [showGameDetailsSidebar, setShowGameDetailsSidebar] = useState(true)
   const [showFooter, setShowFooter] = useState(true)
   const [runningText, setRunningText] = useState('')
   const [launchOnWindowsStartup, setLaunchOnWindowsStartup] = useState(false)
@@ -204,20 +62,14 @@ export default function SettingsPage() {
         const rawIconSize = (stored as Record<string, unknown>).gameIconSize
         if (rawIconSize === 'small' || rawIconSize === 'medium' || rawIconSize === 'large') setGameIconSize(rawIconSize)
 
-        const rawCategoryPos = (stored as Record<string, unknown>).categoryPosition
-        const catM = migrateLayoutPosition(rawCategoryPos)
-        if (catM) setCategoryPosition(catM)
-
         const rawShowCategoryIcons = (stored as Record<string, unknown>).showCategoryIcons
         if (typeof rawShowCategoryIcons === 'boolean') setShowCategoryIcons(rawShowCategoryIcons)
 
-        const rawQuickPos = (stored as Record<string, unknown>).quickAccessPosition
-        const quickM = migrateLayoutPosition(rawQuickPos)
-        if (quickM) setQuickAccessPosition(quickM)
+        const rawShowPopular = (stored as Record<string, unknown>).showPopularStrip
+        if (typeof rawShowPopular === 'boolean') setShowPopularStrip(rawShowPopular)
 
-        const rawTagsPos = (stored as Record<string, unknown>).tagsPosition
-        const tagsM = migrateLayoutPosition(rawTagsPos)
-        if (tagsM) setTagsPosition(tagsM)
+        const rawPopularPath = (stored as Record<string, unknown>).popularDataPath
+        if (typeof rawPopularPath === 'string') setPopularDataPath(rawPopularPath)
 
         const rawShowTags = (stored as Record<string, unknown>).showTags
         if (typeof rawShowTags === 'boolean') setShowTags(rawShowTags)
@@ -227,6 +79,9 @@ export default function SettingsPage() {
 
         const rawShowQuickAccessTitle = (stored as Record<string, unknown>).showQuickAccessTitle
         if (typeof rawShowQuickAccessTitle === 'boolean') setShowQuickAccessTitle(rawShowQuickAccessTitle)
+
+        const rawShowGameDetails = (stored as Record<string, unknown>).showGameDetailsSidebar
+        if (typeof rawShowGameDetails === 'boolean') setShowGameDetailsSidebar(rawShowGameDetails)
 
         const rawShowFooter = (stored as Record<string, unknown>).showFooter
         if (typeof rawShowFooter === 'boolean') setShowFooter(rawShowFooter)
@@ -267,13 +122,13 @@ export default function SettingsPage() {
       gameOrder,
       whenLaunchingGame,
       gameIconSize,
-      categoryPosition,
       showCategoryIcons,
-      quickAccessPosition,
-      tagsPosition,
+      showPopularStrip,
+      popularDataPath: popularDataPath.trim() || undefined,
       showTags,
       showQuickAccess,
       showQuickAccessTitle,
+      showGameDetailsSidebar,
       showFooter,
       runningText,
       launchOnWindowsStartup,
@@ -285,13 +140,13 @@ export default function SettingsPage() {
       gameOrder,
       whenLaunchingGame,
       gameIconSize,
-      categoryPosition,
       showCategoryIcons,
-      quickAccessPosition,
-      tagsPosition,
+      showPopularStrip,
+      popularDataPath,
       showTags,
       showQuickAccess,
       showQuickAccessTitle,
+      showGameDetailsSidebar,
       showFooter,
       runningText,
       launchOnWindowsStartup,
@@ -335,6 +190,13 @@ export default function SettingsPage() {
   const handleClearBackground = () => setBackgroundImagePath('')
   const handleClearLogo = () => setLogoImagePath('')
 
+  const handlePickPopularJson = async () => {
+    if (!hasWailsApp()) return
+    await yieldForNativeFileDialog()
+    const picked = await PickPopularJsonFileWails()
+    if (picked?.trim()) setPopularDataPath(picked.trim())
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <Head>
@@ -345,7 +207,10 @@ export default function SettingsPage() {
         <div className="h-full overflow-auto rounded-lg border border-theme-border bg-theme-app p-6">
           <div className="mb-4">
             <div className="text-lg font-semibold text-theme-text">Settings</div>
-            <div className="text-xs text-theme-muted">Configure launcher layout and visuals. Changes save automatically.</div>
+            <div className="text-xs text-theme-muted">
+              Layout matches the game client shell: header, sidebar (categories + quick access), main grid, footer.
+              Changes save automatically.
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -417,48 +282,85 @@ export default function SettingsPage() {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="text-sm text-theme-muted">Category Position</label>
-                <div className="flex items-center space-x-1.5">
-                  <Switch checked={showCategoryIcons} onCheckedChange={setShowCategoryIcons} id="show-category-icons" />
-                  <label htmlFor="show-category-icons" className="text-sm text-theme-muted">
-                    Show category icons
-                  </label>
-                </div>
-              </div>
-              <EdgeAlignSelect
-                idPrefix="category-pos"
-                value={categoryPosition}
-                onChange={setCategoryPosition}
-              />
-              <p className="text-xs leading-relaxed text-theme-muted">
-                Top/Bottom: <span className="text-theme-text/90">Left / Center / Right</span> aligns the horizontal tab strip;{' '}
-                <span className="text-theme-text/90">Right</span> lists categories from right to left (ALL stays at the screen edge). Left/Right rails:{' '}
-                <span className="text-theme-text/90">Upper / Center / Lower</span> along the side. When tabs don&apos;t fit, the client shows a More menu.
+            <div className="space-y-3 rounded-lg border border-theme-border bg-theme-card/40 p-4">
+              <div className="text-sm font-medium text-theme-text">Sidebar &amp; main</div>
+              <p className="text-xs text-theme-muted">
+                Categories and quick access live in the left sidebar on the game client. Use the toggles below; there are no edge/corner
+                positions anymore.
               </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label htmlFor="show-category-icons" className="text-sm text-theme-muted">
+                  Show category icons
+                </label>
+                <Switch checked={showCategoryIcons} onCheckedChange={setShowCategoryIcons} id="show-category-icons" />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label htmlFor="show-popular" className="text-sm text-theme-muted">
+                  Show &quot;Popular&quot; strip
+                </label>
+                <Switch checked={showPopularStrip} onCheckedChange={setShowPopularStrip} id="show-popular" />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-theme-muted">Show quick access</span>
+                <Switch checked={showQuickAccess} onCheckedChange={setShowQuickAccess} />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-theme-muted">Show quick access title</span>
+                <Switch
+                  checked={showQuickAccessTitle}
+                  onCheckedChange={setShowQuickAccessTitle}
+                  disabled={!showQuickAccess}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-theme-muted">Show tags on tiles</span>
+                <Switch checked={showTags} onCheckedChange={setShowTags} />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-theme-muted">Show game details sidebar (IGDB / simple)</span>
+                <Switch checked={showGameDetailsSidebar} onCheckedChange={setShowGameDetailsSidebar} />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2'>
-                <label className="text-sm text-theme-muted">Quick Access Position</label>
-                <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                  <div className="flex items-center space-x-1.5">
-                    <label className="text-sm text-theme-muted">Show Quick Access</label>
-                    <Switch checked={showQuickAccess} onCheckedChange={setShowQuickAccess} />
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <label className="text-sm text-theme-muted">Show Title</label>
-                    <Switch checked={showQuickAccessTitle} onCheckedChange={setShowQuickAccessTitle} disabled={!showQuickAccess} />
-                  </div>
-                </div>
+            <div className="space-y-2 rounded-lg border border-theme-border bg-theme-card/40 p-4">
+              <div className="text-sm font-medium text-theme-text">Popular list file (diskless / network)</div>
+              <p className="text-xs leading-relaxed text-theme-muted">
+                Optional absolute path to <span className="font-mono text-theme-text/90">popular.json</span>, or a folder that contains it
+                (e.g.{' '}
+                <span className="font-mono text-theme-text/90">
+                  {'\\\\fileserver\\share\\launcher\\popular.json'}
+                </span>
+                ). Empty = use{' '}
+                <span className="font-mono text-theme-text/90">data/popular.json</span> next to the apps. Format:{' '}
+                <span className="font-mono text-theme-text/90">{`{ "gameIds": [1,2,3] }`}</span>. The client also writes{' '}
+                <span className="font-mono text-theme-text/90">launch-stats.json</span> in the same folder (open counts per game id).
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={popularDataPath}
+                  onChange={(e) => setPopularDataPath(e.target.value)}
+                  placeholder="Leave empty for default data/popular.json"
+                  className="min-w-[12rem] flex-1 border-theme-border bg-theme-card text-theme-text placeholder:text-theme-muted"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
+                  onClick={() => void handlePickPopularJson()}
+                  disabled={!canSave}
+                >
+                  Browse…
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="bg-theme-secondary text-theme-text hover:bg-theme-secondary-hover"
+                  onClick={() => setPopularDataPath('')}
+                  disabled={!canSave}
+                >
+                  Use default
+                </Button>
               </div>
-              <EdgeAlignSelect
-                idPrefix="quick-pos"
-                value={quickAccessPosition}
-                onChange={setQuickAccessPosition}
-                disabled={!showQuickAccess}
-              />
             </div>
 
             <div className={cn("space-y-3 rounded-lg border border-theme-border bg-theme-card/40 p-4",
@@ -486,24 +388,6 @@ export default function SettingsPage() {
                 onChange={(e) => setRunningText(e.target.value)}
                 placeholder="Text shown for running label"
                 className="border-theme-border bg-theme-card text-theme-text placeholder:text-theme-muted"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className='flex items-center justify-between'>
-                <label className="text-sm text-theme-muted">Tags Position</label>
-                <div className="flex items-center space-x-1.5">
-                  <label className="text-sm text-theme-muted">Show Tags</label>
-                  <div className="flex items-center">
-                    <Switch checked={showTags} onCheckedChange={setShowTags} />
-                  </div>
-                </div>
-              </div>
-              <EdgeAlignSelect
-                idPrefix="tags-pos"
-                value={tagsPosition}
-                onChange={setTagsPosition}
-                disabled={!showTags}
               />
             </div>
 

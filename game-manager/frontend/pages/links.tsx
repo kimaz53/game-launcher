@@ -89,7 +89,7 @@ function LinkIconThumb({ relPath }: { relPath?: string }) {
     )
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" className="h-9 w-9 rounded border border-theme-border object-contain" />
+  return <img src={src} alt="" className="h-9 w-9 rounded object-contain" />
 }
 
 export default function LinksPage() {

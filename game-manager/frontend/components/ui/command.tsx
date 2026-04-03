@@ -48,7 +48,7 @@ CommandList.displayName = CommandPrimitive.List.displayName
 const CommandEmpty = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Empty>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
->((props, ref) => <CommandPrimitive.Empty ref={ref} className="py-4 text-center text-sm text-theme-muted" {...props} />)
+>((props, ref) => <CommandPrimitive.Empty ref={ref} className="font-display py-4 text-center text-sm text-theme-muted" {...props} />)
 CommandEmpty.displayName = CommandPrimitive.Empty.displayName
 
 const CommandGroup = React.forwardRef<
@@ -57,7 +57,7 @@ const CommandGroup = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.Group
     ref={ref}
-    className={cn('overflow-hidden p-1 text-theme-text [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-theme-muted', className)}
+    className={cn('font-display overflow-hidden p-1 text-theme-text [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-theme-muted', className)}
     {...props}
   />
 ))
@@ -70,7 +70,7 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none aria-selected:bg-theme-secondary aria-selected:text-theme-text data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
+      'font-display relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none aria-selected:bg-theme-secondary aria-selected:text-theme-text data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
       className
     )}
     {...props}
