@@ -1,4 +1,4 @@
-# Game Launcher
+# Game Launcher v1.0.0
 
 A small **Wails** monorepo with two desktop apps that share on-disk JSON (and images) as the source of truth for a PC game library.
 
